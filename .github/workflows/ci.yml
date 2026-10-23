@@ -1,0 +1,107 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  DOTNET_NOLOGO: 1
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+
+jobs:
+  build-test-pack:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+      - name: Format (blocking)
+        run: dotnet format QualityGates.sln --verify-no-changes
+      - name: Build
+        run: dotnet build QualityGates.sln -c Release
+      - name: Test with coverage
+        run: dotnet test QualityGates.sln -c Release --no-build --collect:"XPlat Code Coverage" --results-directory coverage
+      - name: Pack
+        run: dotnet pack QualityGates.sln -c Release --no-build
+      - name: Sample consumes the packed packages (local feed)
+        run: dotnet test samples/HexSample/HexSample.sln
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: artifacts/*.nupkg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/**/coverage.cobertura.xml
+
+  diff-coverage:
+    if: github.event_name == 'pull_request'
+    needs: build-test-pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage
+          path: coverage
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Diff coverage >= 80 (merge gate, blocking)
+        run: |
+          pip install diff-cover
+          diff-cover $(find coverage -name coverage.cobertura.xml) --compare-branch origin/${{ github.base_ref }} --fail-under 80
+
+  mutation:
+    needs: build-test-pack
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+      - name: Stryker (informational, never blocks)
+        continue-on-error: true
+        run: |
+          dotnet tool install -g dotnet-stryker
+          cd tests/KirillMaster.QualityGates.Analyzers.Tests
+          dotnet stryker --project KirillMaster.QualityGates.Analyzers.csproj --reporter markdown --reporter json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mutation
+          path: tests/**/StrykerOutput/**
+
+  quality-report:
+    if: always()
+    needs: [build-test-pack, diff-coverage, mutation]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Write quality-report.json
+        run: |
+          status() { case "$1" in success) echo passed;; skipped) echo skipped;; *) echo failed;; esac; }
+          cat > quality-report.json <<EOF
+          {
+            "schema": 1,
+            "tool": "KirillMaster.QualityGates",
+            "gates": [
+              { "id": "build-test-format-pack", "status": "$(status '${{ needs.build-test-pack.result }}')", "blocking": true },
+              { "id": "diff-coverage", "status": "$(status '${{ needs.diff-coverage.result }}')", "blocking": true, "threshold": 80 },
+              { "id": "mutation", "status": "$(status '${{ needs.mutation.result }}')", "blocking": false }
+            ]
+          }
+          EOF
+          cat quality-report.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quality-report
+          path: quality-report.json

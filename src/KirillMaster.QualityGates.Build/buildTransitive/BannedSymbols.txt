@@ -1,0 +1,13 @@
+P:System.Threading.Tasks.Task`1.Result;Sync over async, use await
+M:System.Threading.Tasks.Task.Wait();Sync over async, use await
+M:System.Threading.Tasks.Task.Wait(System.Int32);Sync over async, use await
+M:System.Threading.Tasks.Task.Wait(System.TimeSpan);Sync over async, use await
+M:System.Threading.Tasks.Task.Wait(System.Threading.CancellationToken);Sync over async, use await
+M:System.Threading.Tasks.Task.WaitAll(System.Threading.Tasks.Task[]);Sync over async, use await
+M:System.Threading.Tasks.Task.WaitAny(System.Threading.Tasks.Task[]);Sync over async, use await
+M:System.Runtime.CompilerServices.TaskAwaiter.GetResult();Sync over async, use await
+M:System.Runtime.CompilerServices.TaskAwaiter`1.GetResult();Sync over async, use await
+M:System.Runtime.CompilerServices.ValueTaskAwaiter`1.GetResult();Sync over async, use await
+M:System.Threading.Thread.Sleep(System.Int32);Blocking wait, use await Task.Delay
+M:System.Threading.Thread.Sleep(System.TimeSpan);Blocking wait, use await Task.Delay
+M:System.Environment.Exit(System.Int32);Do not terminate the process from library code

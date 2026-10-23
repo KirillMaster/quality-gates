@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <PackageId>KirillMaster.QualityGates.Architecture</PackageId>
+    <Description>ArchUnitNET-based hexagonal layering test base with config-driven rules and repository meta-tests (settings locked, central package versions, suppression ratchet).</Description>
+    <PackageTags>quality;architecture;archunit;hexagonal;tests;quality-gates</PackageTags>
+    <NoWarn>$(NoWarn);CA1707</NoWarn>
+    <IsTestProject>false</IsTestProject>
+    <GenerateRuntimeConfigurationFiles>false</GenerateRuntimeConfigurationFiles>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TngTech.ArchUnitNET.xUnit" />
+    <PackageReference Include="xunit" />
+  </ItemGroup>
+</Project>

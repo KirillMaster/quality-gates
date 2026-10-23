@@ -1,0 +1,13 @@
+is_global = true
+global_level = 5
+
+dotnet_diagnostic.CA1515.severity = none
+dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.CA1062.severity = none
+dotnet_diagnostic.CA1861.severity = none
+dotnet_diagnostic.CA2007.severity = none
+dotnet_diagnostic.MA0048.severity = none
+dotnet_diagnostic.MA0004.severity = none
+dotnet_diagnostic.MA0051.severity = none
+dotnet_diagnostic.S1144.severity = none
+dotnet_diagnostic.S2699.severity = none
