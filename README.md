@@ -80,11 +80,14 @@ Sample against the local feed: `dotnet test samples/HexSample/HexSample.sln` (re
 
 ## Releasing
 
-Bump `Version` in `Directory.Build.props`, update `CHANGELOG.md`, then:
+Publishing runs in `.github/workflows/release.yml` and authenticates to nuget.org with Trusted Publishing (OIDC, no API key stored anywhere). The nuget.org trusted publishing policy must match owner `KirillMaster`, repository `quality-gates`, workflow file `release.yml`.
+
+One-time setup: add the repository variable `NUGET_USER` (Settings → Secrets and variables → Actions → Variables) set to your nuget.org profile name.
+
+Per release: bump `Version` in `Directory.Build.props`, update `CHANGELOG.md`, then:
 
 ```
-dotnet pack -c Release
-dotnet nuget push "artifacts/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key <NUGET_API_KEY> --skip-duplicate
+git tag v0.1.0 && git push origin v0.1.0
 ```
 
-Tag the release: `git tag v0.1.0 && git push --tags`.
+The workflow derives the package version from the tag (`v0.1.0` → `0.1.0`) and pushes with `--skip-duplicate`. Manual run: Actions → release → Run workflow, enter `version`.
