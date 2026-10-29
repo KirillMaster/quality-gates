@@ -26,6 +26,57 @@ internal static class Thresholds
         && int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
             ? parsed
             : fallback;
+
+    public static ImmutableHashSet<string> GetList(AnalyzerOptions options, SyntaxTree tree, string key, string fallback)
+    {
+        var raw = options.AnalyzerConfigOptionsProvider.GetOptions(tree).TryGetValue(key, out var value) ? value : fallback;
+        return raw.Split(',').Select(v => v.Trim()).Where(v => v.Length > 0).ToImmutableHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+}
+
+internal static class CompositionRoot
+{
+    public static bool IsExempt(AnalyzerOptions options, Compilation compilation, SyntaxNode node)
+    {
+        var tree = node.SyntaxTree;
+        if (string.Equals(System.IO.Path.GetFileName(tree.FilePath), "Program.cs", StringComparison.OrdinalIgnoreCase)
+            || node.AncestorsAndSelf().OfType<GlobalStatementSyntax>().Any())
+        {
+            return true;
+        }
+
+        var assembly = compilation.AssemblyName ?? string.Empty;
+        return Thresholds.GetList(options, tree, "qg_composition_root_suffixes", Descriptors.CompositionRootSuffixes)
+            .Any(suffix => assembly.EndsWith(suffix, StringComparison.OrdinalIgnoreCase));
+    }
+}
+
+internal static class Tokens
+{
+    public static string[] Split(string identifier)
+    {
+        var tokens = new System.Collections.Generic.List<string>();
+        var start = -1;
+        for (var i = 0; i <= identifier.Length; i++)
+        {
+            var c = i < identifier.Length ? identifier[i] : '_';
+            var boundary = !char.IsLetter(c)
+                || (start >= 0 && char.IsUpper(c) && (char.IsLower(identifier[i - 1])
+                    || (i + 1 < identifier.Length && char.IsUpper(identifier[i - 1]) && char.IsLower(identifier[i + 1]))));
+            if (boundary && start >= 0)
+            {
+                tokens.Add(identifier.Substring(start, i - start));
+                start = -1;
+            }
+
+            if (start < 0 && char.IsLetter(c))
+            {
+                start = i;
+            }
+        }
+
+        return tokens.ToArray();
+    }
 }
 
 internal static class Metrics

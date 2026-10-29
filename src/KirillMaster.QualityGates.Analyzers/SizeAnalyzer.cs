@@ -5,7 +5,7 @@ public sealed class SizeAnalyzer : QgAnalyzer
 {
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
         Descriptors.TypeTooLong, Descriptors.MethodTooLong, Descriptors.Complexity, Descriptors.Nesting,
-        Descriptors.TooManyParameters, Descriptors.TooManyDependencies);
+        Descriptors.TooManyParameters, Descriptors.TooManyDependencies, Descriptors.CognitiveComplexity);
 
     protected override void Register(AnalysisContext context)
     {
@@ -54,6 +54,16 @@ public sealed class SizeAnalyzer : QgAnalyzer
         if (complexity > maxComplexity)
         {
             context.ReportDiagnostic(Diagnostic.Create(Descriptors.Complexity, location, name, complexity, maxComplexity));
+        }
+
+        if (context.Node is not LocalFunctionStatementSyntax)
+        {
+            var maxCognitive = Thresholds.Get(context.Options, tree, "qg_max_cognitive_complexity", Descriptors.MaxCognitiveComplexity);
+            var cognitive = CognitiveComplexity.Of(body, name);
+            if (cognitive > maxCognitive)
+            {
+                context.ReportDiagnostic(Diagnostic.Create(Descriptors.CognitiveComplexity, location, name, cognitive, maxCognitive));
+            }
         }
 
         var maxNesting = Thresholds.Get(context.Options, tree, "qg_max_nesting", Descriptors.MaxNesting);
