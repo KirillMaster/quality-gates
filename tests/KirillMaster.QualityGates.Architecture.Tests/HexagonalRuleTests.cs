@@ -39,8 +39,8 @@ namespace Shop.Host { public class Composition { public Shop.Adapters.Postgres.P
         var roles = graph.Types.ToDictionary(t => t.FullName, profile.RoleOf);
 
         Assert.Equal(
-            [HexRole.Core, HexRole.PortsInput, HexRole.PortsOutput, HexRole.Adapters, HexRole.Runners, HexRole.Host],
-            ["Shop.Core.Model.Order", "Shop.Core.Ports.Input.IFat", "Shop.Core.Ports.Output.IOrders", "Shop.Adapters.Dynamo.DynamoCache", "Shop.Runners.Api.Endpoint", "Shop.Host.Composition"].Select(n => roles[n]));
+            new[] { HexRole.Core, HexRole.PortsInput, HexRole.PortsOutput, HexRole.Adapters, HexRole.Runners, HexRole.Host },
+            new[] { "Shop.Core.Model.Order", "Shop.Core.Ports.Input.IFat", "Shop.Core.Ports.Output.IOrders", "Shop.Adapters.Dynamo.DynamoCache", "Shop.Runners.Api.Endpoint", "Shop.Host.Composition" }.Select(n => roles[n]));
     }
 
     [Fact]
