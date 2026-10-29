@@ -1,6 +1,6 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
 
 namespace KirillMaster.QualityGates.Architecture.Hexagonal;
@@ -72,8 +72,12 @@ public sealed class HexagonalProfile
 
     public static HexagonalProfile FromFile(string path) => FromJson(File.ReadAllText(path));
 
-    /// <summary>Role of a type: namespace patterns win over assembly-name patterns; within one source the order is Host, Runners, ports, Adapters, Core.</summary>
-    public HexRole RoleOf(IType type)
+    private readonly ConcurrentDictionary<IType, HexRole> _roles = new();
+
+    /// <summary>Role of a type (memoized per type, so set the patterns before the first rule runs): namespace patterns win over assembly-name patterns; within one source the order is Host, Runners, ports, Adapters, Core.</summary>
+    public HexRole RoleOf(IType type) => _roles.GetOrAdd(type, Resolve);
+
+    private HexRole Resolve(IType type)
     {
         var patterns = new (HexRole Role, string Pattern)[]
         {
@@ -102,10 +106,11 @@ public sealed class HexagonalProfile
     /// <summary>Adapter name of an adapter type, or null for shared adapter code.</summary>
     public string? AdapterOf(IType type)
     {
-        var match = Regex.Match(type.Namespace.FullName, AdapterNamePattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        var regex = TypeGraph.Compile(AdapterNamePattern);
+        var match = regex.Match(type.Namespace.FullName);
         if (!match.Success)
         {
-            match = Regex.Match(type.Assembly.Name, AdapterNamePattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+            match = regex.Match(type.Assembly.Name);
         }
 
         return match.Success ? match.Groups[1].Value : null;

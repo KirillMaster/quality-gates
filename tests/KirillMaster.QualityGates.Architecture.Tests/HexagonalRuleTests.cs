@@ -97,6 +97,17 @@ namespace Shop.Host { public class Composition { public Shop.Adapters.Postgres.P
     }
 
     [Fact]
+    public void Records_with_one_real_member_are_not_mirrors_but_records_with_two_are()
+    {
+        var assembly = FixtureCompiler.Compile("ShopHexRecords", @"
+namespace Shop.Core.Ports.Input { public record R1(int Id); public record R2(int Id, string Name); }
+namespace Shop.Core.Ports.Output { public record O1(int Id); public record O2(int Id, string Name); }");
+        var graph = TypeGraph.Build(ArchitectureRules.Load([assembly]), [assembly]);
+
+        Assert.Equal(["Shop.Core.Ports.Input.R2<->Shop.Core.Ports.Output.O2"], HexagonalRules.NoMirrorTypes(graph, new HexagonalProfile()).Select(v => v.Key));
+    }
+
+    [Fact]
     public void Port_signatures_do_not_leak_technology_types()
     {
         var (graph, _) = Load("ShopHexTech");

@@ -91,7 +91,7 @@ public abstract class HexagonalArchitectureTests
         {
             var assemblies = Assemblies.ToArray();
             var found = ModuleRules.All(TypeGraph.Build(ArchitectureRules.Load(assemblies), assemblies), config);
-            AssertNoNewViolations(found, config.BaselinePath, config.StrictFeatureIsolation ? ModuleRuleIds.FeatureIsolation : null);
+            AssertNoNewViolations(found, config.BaselinePath, config.StrictFeatureIsolation ? ModuleRuleIds.FeatureIsolation : null, ModuleRules.ActiveRules(config));
         }
     }
 
@@ -102,19 +102,25 @@ public abstract class HexagonalArchitectureTests
         if (HexagonalRulesConfig is { } profile)
         {
             var assemblies = Assemblies.ToArray();
-            AssertNoNewViolations(HexagonalRules.All(TypeGraph.Build(ArchitectureRules.Load(assemblies), assemblies), profile), profile.Baseline, null);
+            AssertNoNewViolations(HexagonalRules.All(TypeGraph.Build(ArchitectureRules.Load(assemblies), assemblies), profile), profile.Baseline, null, HexagonalRules.ActiveRules);
         }
     }
 
-    private void AssertNoNewViolations(IReadOnlyList<RuleViolation> found, string baselinePath, string? strictRule)
+    private void AssertNoNewViolations(IReadOnlyList<RuleViolation> found, string baselinePath, string? strictRule, IReadOnlyList<string> rulesRun)
     {
-        var path = Path.IsPathRooted(baselinePath) ? baselinePath : Path.Combine(RepositoryRoot ?? Directory.GetCurrentDirectory(), baselinePath);
+        var root = RepositoryRoot;
+        if (!Path.IsPathRooted(baselinePath) && root is null)
+        {
+            throw new InvalidOperationException("Baseline path '" + baselinePath + "' is relative but RepositoryRoot is null; override RepositoryRoot or use an absolute path.");
+        }
+
+        var path = Path.IsPathRooted(baselinePath) ? baselinePath : Path.Combine(root!, baselinePath);
         var baseline = RuleBaseline.FromFile(path);
         var fresh = found.Where(v => v.Rule == strictRule || !baseline.Tolerates(v)).ToArray();
         Assert.True(fresh.Length == 0, "New violations (add to " + baselinePath + " only to tolerate): " + string.Join("; ", fresh.Select(v => $"[{v.Rule}] {v.Key}#{v.Measure} {v.Message}")));
         if (FailOnStaleBaseline)
         {
-            Assert.True(baseline.Stale(found).Count == 0, "Stale baseline entries in " + baselinePath + " (remove or lower them): " + string.Join("; ", baseline.Stale(found)));
+            Assert.True(baseline.Stale(found, rulesRun).Count == 0, "Stale baseline entries in " + baselinePath + " (remove or lower them): " + string.Join("; ", baseline.Stale(found, rulesRun)));
         }
     }
 }

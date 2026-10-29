@@ -19,7 +19,6 @@ public static class ModuleRules
 {
     public static IReadOnlyList<RuleViolation> All(TypeGraph graph, ModulesConfig config)
     {
-        Validate(config);
         return [.. FeatureIsolation(graph, config), .. SharedPurity(graph, config), .. SharedCap(graph, config), .. CompositionCap(graph, config),
             .. ModelIsLeaf(graph, config), .. ModuleFanOut(graph, config), .. OrchestrationThin(graph, config)];
     }
@@ -56,6 +55,7 @@ public static class ModuleRules
     /// <summary>Orchestrator classes stay thin: bounded method count and bounded distinct dependencies.</summary>
     public static IReadOnlyList<RuleViolation> OrchestrationThin(TypeGraph graph, ModulesConfig config)
     {
+        config.EnsureValid();
         var pattern = new Regex(config.OrchestratorPattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
         var found = new List<RuleViolation>();
         foreach (var type in graph.Types.Where(t => t is Class && pattern.IsMatch(t.FullName)))
@@ -76,22 +76,24 @@ public static class ModuleRules
         return [.. found.OrderBy(v => v.Key, StringComparer.Ordinal)];
     }
 
-    private static void Validate(ModulesConfig config)
-    {
-        var invalid = config.Validate().ToArray();
-        if (invalid.Length > 0)
-        {
-            throw new InvalidOperationException(string.Join("; ", invalid));
-        }
-    }
+    /// <summary>Rule ids that actually run for this config (the caps only when a limit is set).</summary>
+    public static IReadOnlyList<string> ActiveRules(ModulesConfig config) =>
+    [
+        ModuleRuleIds.FeatureIsolation, ModuleRuleIds.SharedPurity, ModuleRuleIds.ModelIsLeaf, ModuleRuleIds.ModuleFanOut, ModuleRuleIds.OrchestrationThin,
+        .. config.SharedMaxTypes is null ? [] : new[] { ModuleRuleIds.SharedCap },
+        .. config.CompositionMaxTypes is null ? [] : new[] { ModuleRuleIds.CompositionCap },
+    ];
 
-    private static IReadOnlyList<RuleViolation> Cap(TypeGraph graph, ModulesConfig config, ModuleKind kind, int? max, string rule) =>
-        max is not { } limit
+    private static IReadOnlyList<RuleViolation> Cap(TypeGraph graph, ModulesConfig config, ModuleKind kind, int? max, string rule)
+    {
+        config.EnsureValid();
+        return max is not { } limit
             ? []
-            : [.. graph.Types.Select(config.ModuleOf).OfType<ModuleSpec>().Where(m => m.Kind == kind).GroupBy(m => m.Name, StringComparer.Ordinal)
+            : [.. graph.Types.Where(t => !t.FullName.Contains('+', StringComparison.Ordinal)).Select(config.ModuleOf).OfType<ModuleSpec>().Where(m => m.Kind == kind).GroupBy(m => m.Name, StringComparer.Ordinal)
                 .Where(g => g.Count() > limit)
                 .Select(g => new RuleViolation(rule, g.Key, g.Count(), $"Module {g.Key} has {g.Count()} types (max {limit})"))
                 .OrderBy(v => v.Key, StringComparer.Ordinal)];
+    }
 
     private static IReadOnlyList<RuleViolation> Edges(TypeGraph graph, ModulesConfig config, string rule, Func<ModuleSpec, ModuleSpec, bool> forbidden, Func<string, string, string> message) =>
         [.. ModuleEdges(graph, config).Where(e => forbidden(e.From, e.To))
@@ -102,6 +104,7 @@ public static class ModuleRules
     /// <summary>One entry per type edge between two different modules.</summary>
     private static IEnumerable<(ModuleSpec From, ModuleSpec To)> ModuleEdges(TypeGraph graph, ModulesConfig config)
     {
+        config.EnsureValid();
         foreach (var (from, to) in graph.Edges)
         {
             if (config.ModuleOf(from) is { } source && config.ModuleOf(to) is { } target && source.Name != target.Name)

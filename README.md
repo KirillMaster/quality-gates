@@ -89,6 +89,10 @@ Hexagonal profile (`HexagonalProfile`, baseline `quality/hexagonal-baseline.json
 | NoMirrorTypes | Ports.Input and Ports.Output types sharing at least 90% of member name and type pairs (min 2 members) | 0.9 |
 | PortNoTechnologyTypes | IQueryable, HTTP, JSON, Stream, `System.Data`, EF, Amazon, Npgsql types in port signatures | on |
 
+#### Refactoring and baseline keys
+
+Keys name modules and types (`Bill->Fulfillment`, `Shop.Core.IFat`), so a move or rename makes the old entry stale and the same violation new. Remap the baseline in the same change: `RuleBaseline.FromFile(path).Remap(new Dictionary<string, string> { ["Old.Type"] = "New.Type" }).ToJson()` renames exact keys, keeps the measure (the larger one if two keys collapse) and leaves unmapped keys alone. Relative baseline paths need `RepositoryRoot`; without it the test throws instead of using an empty baseline. `FailOnStaleBaseline` only checks the rules the test ran, so one baseline file can be shared.
+
 ### Legacy projects (ratchet)
 
 Set `QualityGatesProfile=legacy-ratchet`, put existing violations into `quality/grandfathered/<Project>.GlobalSuppressions.cs` and record the count in `quality/baseline.json` (`{"maxGrandfatheredSuppressions": 42}`). `Suppressions_stay_under_baseline` fails if the count grows or if the baseline is stale, so it can only go down.

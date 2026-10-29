@@ -91,11 +91,21 @@ public static class HexagonalRules
     private static bool IsContainer(string name, HexagonalProfile profile) =>
         name == ServiceProvider || profile.ContainerNamespaces.Any(n => name.StartsWith(n + ".", StringComparison.Ordinal));
 
+    /// <summary>Ids of the rules the profile runs.</summary>
+    public static IReadOnlyList<string> ActiveRules { get; } =
+    [
+        HexagonalRuleIds.AdapterReferencesAdapter, HexagonalRuleIds.AdapterDirection, HexagonalRuleIds.RunnerHostReferences, HexagonalRuleIds.CoreNoContainer,
+        HexagonalRuleIds.PortWidth, HexagonalRuleIds.NoMirrorTypes, HexagonalRuleIds.PortNoTechnologyTypes,
+    ];
+
     private static List<(IType Type, HashSet<string> Members)> Shapes(TypeGraph graph, HexagonalProfile profile, HexRole role) =>
         [.. graph.Types.Where(t => t is not Interface && profile.RoleOf(t) == role)
-            .Select(t => (Type: t, Members: t.Members.OfType<PropertyMember>().Select(p => p.Name + ":" + p.Type.FullName)
-                .Concat(t.Members.OfType<FieldMember>().Where(f => !f.IsCompilerGenerated).Select(f => f.Name + ":" + f.Type.FullName)).ToHashSet(StringComparer.Ordinal)))
+            .Select(t => (Type: t, Members: t.Members.OfType<PropertyMember>().Where(IsDeclared).Select(p => p.Name + ":" + p.Type.FullName)
+                .Concat(t.Members.OfType<FieldMember>().Where(IsDeclared).Select(f => f.Name + ":" + f.Type.FullName)).ToHashSet(StringComparer.Ordinal)))
             .Where(s => s.Members.Count >= profile.MirrorMinMembers)];
+
+    /// <summary>Members the author wrote: not compiler-generated and not the record EqualityContract.</summary>
+    private static bool IsDeclared(IMember member) => !member.IsCompilerGenerated && member.Name != "EqualityContract";
 
     private static double Similarity(HashSet<string> a, HashSet<string> b) => (double)a.Intersect(b).Count() / Math.Max(a.Count, b.Count);
 }

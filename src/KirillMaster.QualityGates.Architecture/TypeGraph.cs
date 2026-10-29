@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using ArchUnitNET.Domain;
@@ -51,10 +52,16 @@ public sealed class TypeGraph
         return new TypeGraph([.. byName.Values.OrderBy(t => t.FullName, StringComparer.Ordinal)], edges);
     }
 
+    private static readonly ConcurrentDictionary<string, Regex> Compiled = new(StringComparer.Ordinal);
+
+    /// <summary>Regex compiled once per pattern and reused.</summary>
+    internal static Regex Compile(string pattern) =>
+        Compiled.GetOrAdd(pattern, p => new Regex(p, RegexOptions.CultureInvariant | RegexOptions.Compiled, TimeSpan.FromSeconds(1)));
+
     /// <summary>Regex matched against the type's namespace and its assembly name.</summary>
     internal static bool Matches(string pattern, IType type) => MatchesNamespace(pattern, type) || MatchesAssembly(pattern, type);
 
-    internal static bool MatchesNamespace(string pattern, IType type) => Regex.IsMatch(type.Namespace.FullName, pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+    internal static bool MatchesNamespace(string pattern, IType type) => Compile(pattern).IsMatch(type.Namespace.FullName);
 
-    internal static bool MatchesAssembly(string pattern, IType type) => Regex.IsMatch(type.Assembly.Name, pattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+    internal static bool MatchesAssembly(string pattern, IType type) => Compile(pattern).IsMatch(type.Assembly.Name);
 }

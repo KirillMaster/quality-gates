@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using ArchUnitNET.Domain;
@@ -67,11 +68,23 @@ public sealed class ModulesConfig
 
     public static ModulesConfig FromFile(string path) => FromJson(File.ReadAllText(path));
 
-    public ModuleSpec? ModuleOf(IType type) =>
-        Modules.FirstOrDefault(m => TypeGraph.MatchesNamespace(m.Pattern, type))
-        ?? Modules.FirstOrDefault(m => TypeGraph.MatchesAssembly(m.Pattern, type));
+    private readonly ConcurrentDictionary<IType, ModuleSpec?> _owners = new();
 
-    internal IEnumerable<string> Validate()
+    /// <summary>Owning module of a type; memoized per type, so change <see cref="Modules"/> before the first rule runs.</summary>
+    public ModuleSpec? ModuleOf(IType type) =>
+        _owners.GetOrAdd(type, t => Modules.FirstOrDefault(m => TypeGraph.MatchesNamespace(m.Pattern, t))
+            ?? Modules.FirstOrDefault(m => TypeGraph.MatchesAssembly(m.Pattern, t)));
+
+    internal void EnsureValid()
+    {
+        var invalid = Validate().ToArray();
+        if (invalid.Length > 0)
+        {
+            throw new InvalidOperationException(string.Join("; ", invalid));
+        }
+    }
+
+    private IEnumerable<string> Validate()
     {
         foreach (var duplicate in Modules.GroupBy(m => m.Name, StringComparer.Ordinal).Where(g => g.Count() > 1))
         {
