@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.RegularExpressions;
 
 namespace KirillMaster.QualityGates.Analyzers;
@@ -24,8 +25,71 @@ internal static class Thresholds
     public static int Get(AnalyzerOptions options, SyntaxTree tree, string key, int fallback) =>
         options.AnalyzerConfigOptionsProvider.GetOptions(tree).TryGetValue(key, out var value)
         && int.TryParse(value, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var parsed)
+        && parsed >= 0
             ? parsed
             : fallback;
+
+    public static ImmutableHashSet<string> GetList(AnalyzerOptions options, SyntaxTree tree, string key, string fallback)
+    {
+        var raw = options.AnalyzerConfigOptionsProvider.GetOptions(tree).TryGetValue(key, out var value) ? value : fallback;
+        return raw.Split(',').Select(v => v.Trim()).Where(v => v.Length > 0).ToImmutableHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+}
+
+internal sealed class CompilationConfig
+{
+    private readonly AnalyzerOptions _options;
+    private readonly string _assembly;
+    private readonly ConcurrentDictionary<(SyntaxTree Tree, string Key), ImmutableHashSet<string>> _lists = new();
+    private readonly ConcurrentDictionary<SyntaxTree, bool> _rootAssemblyByTree = new();
+
+    public CompilationConfig(AnalyzerOptions options, Compilation compilation)
+    {
+        _options = options;
+        _assembly = compilation.AssemblyName ?? string.Empty;
+    }
+
+    public AnalyzerOptions Options => _options;
+
+    public ImmutableHashSet<string> List(SyntaxTree tree, string key, string fallback) =>
+        _lists.GetOrAdd((tree, key), k => Thresholds.GetList(_options, k.Tree, k.Key, fallback));
+
+    public bool IsCompositionRoot(SyntaxNode node)
+    {
+        var tree = node.SyntaxTree;
+        return string.Equals(System.IO.Path.GetFileName(tree.FilePath), "Program.cs", StringComparison.OrdinalIgnoreCase)
+            || node.AncestorsAndSelf().OfType<GlobalStatementSyntax>().Any()
+            || _rootAssemblyByTree.GetOrAdd(tree, t => List(t, "qg_composition_root_suffixes", Descriptors.CompositionRootSuffixes)
+                .Any(suffix => _assembly.EndsWith(suffix, StringComparison.OrdinalIgnoreCase)));
+    }
+}
+
+internal static class Tokens
+{
+    public static string[] Split(string identifier)
+    {
+        var tokens = new System.Collections.Generic.List<string>();
+        var start = -1;
+        for (var i = 0; i <= identifier.Length; i++)
+        {
+            var c = i < identifier.Length ? identifier[i] : '_';
+            var boundary = !char.IsLetter(c)
+                || (start >= 0 && char.IsUpper(c) && (char.IsLower(identifier[i - 1])
+                    || (i + 1 < identifier.Length && char.IsUpper(identifier[i - 1]) && char.IsLower(identifier[i + 1]))));
+            if (boundary && start >= 0)
+            {
+                tokens.Add(identifier.Substring(start, i - start));
+                start = -1;
+            }
+
+            if (start < 0 && char.IsLetter(c))
+            {
+                start = i;
+            }
+        }
+
+        return tokens.ToArray();
+    }
 }
 
 internal static class Metrics
@@ -89,6 +153,7 @@ internal static class Symbols
     public static bool ImplementsInterface(ISymbol member) =>
         member switch
         {
+            IFieldSymbol => false,
             IMethodSymbol { ExplicitInterfaceImplementations.Length: > 0 } => true,
             IPropertySymbol { ExplicitInterfaceImplementations.Length: > 0 } => true,
             _ => member.ContainingType?.AllInterfaces

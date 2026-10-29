@@ -23,7 +23,7 @@ csharp_prefer_braces = true:warning
 [*.{csproj,props,targets,json,yml,yaml,sln}]
 indent_size = 2
 
-# Thresholds for QG0001-QG0006 and QG0042 (defaults shown)
+# Thresholds for QG0001-QG0008, QG0034 and QG0042 (defaults shown)
 # qg_max_type_lines = 300
 # qg_max_method_lines = 60
 # qg_max_complexity = 10
@@ -31,6 +31,9 @@ indent_size = 2
 # qg_max_parameters = 5
 # qg_max_dependencies = 7
 # qg_max_asserts = 5
+# qg_max_cognitive_complexity = 15
+# qg_max_method_fan_out = 10
+# qg_composition_root_suffixes = .CompositionRoot
 
 # Opt-in analyzers (disabled by default)
 # dotnet_diagnostic.QG0031.severity = warning
