@@ -61,6 +61,38 @@ public sealed class RepoRules : RepositoryRulesTests { }
 
 `ArchitectureConfig.FromFile("architecture.json")` loads custom layers: `{ "layers": [ { "name": "Core", "pattern": "^X\\.Core(\\..*)?$", "mayDependOn": [], "forbiddenNamespaces": ["System.IO"] } ] }`. Tests carry `Category=Architecture` for `dotnet test --filter Category=Architecture`.
 
+### Module and hexagonal rules (opt in)
+
+Both are off until the base class overrides `ModuleRulesConfig` / `HexagonalRulesConfig` (tests `Modules_follow_isolation_rules`, `Hexagonal_roles_follow_profile_rules`). Violations carry a key and a measure; a violation is tolerated while a baseline entry with the same key has a measure at least as large (`{"rules": {"FeatureIsolation": {"Bill->Fulfillment": 3}}}`, `RuleBaseline.From(violations).ToJson()` generates it). Override `FailOnStaleBaseline` to also fail on entries that vanished or shrank, so the baseline only shrinks.
+
+Generic module engine (`ModulesConfig`, baseline `quality/modules-baseline.json`). Modules are ordered regexes on the type namespace, then on the assembly name; kinds are `Feature`, `Shared`, `Model`, `Composition`.
+
+| Rule | Checks | Default |
+|---|---|---|
+| FeatureIsolation | a feature depends on no other feature and no Composition module | soft (baseline); `StrictFeatureIsolation` ignores the baseline |
+| SharedPurity | Shared depends on no Feature or Composition | on |
+| SharedCap | types per Shared module | off (`SharedMaxTypes`) |
+| CompositionCap | types per Composition module (root ratchet) | off (`CompositionMaxTypes`) |
+| ModelIsLeaf | Model depends on no other module | on |
+| ModuleFanOut | distinct modules a feature depends on | 6 (`ModuleFanOutMax`) |
+| OrchestrationThin | orchestrator (`OrchestratorPattern`, default `(Orchestrator|Coordinator)$`) methods and distinct dependencies | 10 / 12 |
+
+Hexagonal profile (`HexagonalProfile`, baseline `quality/hexagonal-baseline.json`). Roles come from regexes (namespace first, then assembly): `*.Core*`, `*.Ports.Input`, `*.Ports.Output`, `*.Adapters.*`, `*.Runners.*`, `*.Host*`; every pattern can be overridden.
+
+| Rule | Checks | Default |
+|---|---|---|
+| AdapterReferencesAdapter | `Adapters.A` types use `Adapters.B` types | on |
+| AdapterDirection | Core and ports never use adapters, runners or host; adapters only the roles in `AdaptersMayDependOn` | adapters: Core, both ports |
+| RunnerHostReferences | runners use only `RunnersMayDependOn` (no level skipping) | input ports |
+| CoreNoContainer | DI container namespaces and `IServiceProvider` in Core and ports | MS DI, Autofac, Ninject, StructureMap, Lamar, SimpleInjector, Windsor, Unity |
+| PortWidth | members per port interface | 10 |
+| NoMirrorTypes | Ports.Input and Ports.Output types sharing at least 90% of member name and type pairs (min 2 members) | 0.9 |
+| PortNoTechnologyTypes | IQueryable, HTTP, JSON, Stream, `System.Data`, EF, Amazon, Npgsql types in port signatures | on |
+
+#### Refactoring and baseline keys
+
+Keys name modules and types (`Bill->Fulfillment`, `Shop.Core.IFat`), so a move or rename makes the old entry stale and the same violation new. Remap the baseline in the same change: `RuleBaseline.FromFile(path).Remap(new Dictionary<string, string> { ["Old.Type"] = "New.Type" }).ToJson()` renames exact keys, keeps the measure (the larger one if two keys collapse) and leaves unmapped keys alone. Relative baseline paths need `RepositoryRoot`; without it the test throws instead of using an empty baseline. `FailOnStaleBaseline` only checks the rules the test ran, so one baseline file can be shared.
+
 ### Legacy projects (ratchet)
 
 Set `QualityGatesProfile=legacy-ratchet`, put existing violations into `quality/grandfathered/<Project>.GlobalSuppressions.cs` and record the count in `quality/baseline.json` (`{"maxGrandfatheredSuppressions": 42}`). `Suppressions_stay_under_baseline` fails if the count grows or if the baseline is stale, so it can only go down.

@@ -68,7 +68,7 @@ public static class TypeCycles
         [.. cycles.Where(c => !baseline.Contains(c))];
 
     /// <summary>The type itself, or for compiler-generated types (state machines, closures) the nearest declaring type; null when there is none.</summary>
-    private static string? Owner(string fullName)
+    internal static string? Owner(string fullName)
     {
         var generated = fullName.IndexOf('<', StringComparison.Ordinal);
         if (generated < 0)
