@@ -1,9 +1,12 @@
 <Project>
+  <PropertyGroup Condition="'$(QualityGatesEnabled)' != 'false' and '$(QualityGatesEffectiveMode)' == 'refactor'">
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
   <PropertyGroup Condition="'$(QualityGatesEnabled)' != 'false'">
     <QualityGatesGrandfatheredFile>$(QualityGatesGrandfatheredDir)$(MSBuildProjectName).GlobalSuppressions.cs</QualityGatesGrandfatheredFile>
   </PropertyGroup>
   <ItemGroup Condition="'$(QualityGatesEnabled)' != 'false'">
     <AdditionalFiles Condition="'$(QualityGatesBannedSymbols)' != 'false'" Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
-    <Compile Condition="Exists('$(QualityGatesGrandfatheredFile)')" Include="$(QualityGatesGrandfatheredFile)" Link="quality/GlobalSuppressions.Grandfathered.cs" />
+    <Compile Condition="'$(QualityGatesEffectiveMode)' != 'refactor' and Exists('$(QualityGatesGrandfatheredFile)')" Include="$(QualityGatesGrandfatheredFile)" Link="quality/GlobalSuppressions.Grandfathered.cs" />
   </ItemGroup>
 </Project>

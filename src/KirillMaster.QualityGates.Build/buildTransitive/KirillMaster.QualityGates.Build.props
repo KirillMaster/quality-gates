@@ -1,8 +1,17 @@
 <Project>
-  <!-- Opt out with QualityGatesEnabled=false (Directory.Build.props or /p:). Profiles: strict (default) | legacy-ratchet. -->
+  <!-- Opt out with QualityGatesEnabled=false (Directory.Build.props or /p:). Profiles: strict (default) | legacy-ratchet.
+       Modes: adopt (default) | refactor; QUALITYGATES_MODE env var is read when QualityGatesMode is empty.
+       QualityGatesRefactorScope (optional, ';' list of project-name prefixes, trailing * allowed) limits refactor to matching projects. -->
   <PropertyGroup>
     <QualityGatesEnabled Condition="'$(QualityGatesEnabled)' == ''">true</QualityGatesEnabled>
     <QualityGatesProfile Condition="'$(QualityGatesProfile)' == ''">strict</QualityGatesProfile>
+    <QualityGatesMode Condition="'$(QualityGatesMode)' == ''">$(QUALITYGATES_MODE)</QualityGatesMode>
+    <QualityGatesMode Condition="'$(QualityGatesMode)' == ''">adopt</QualityGatesMode>
+    <QualityGatesEffectiveMode>adopt</QualityGatesEffectiveMode>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(QualityGatesMode)' == 'refactor'">
+    <_QualityGatesScopePattern>$(QualityGatesRefactorScope.Trim(';').Replace('.', '\.').Replace('*', '.*').Replace(';', '|'))</_QualityGatesScopePattern>
+    <QualityGatesEffectiveMode Condition="'$(_QualityGatesScopePattern)' == '' or $([System.Text.RegularExpressions.Regex]::IsMatch('$(MSBuildProjectName)', '^(?:$(_QualityGatesScopePattern))'))">refactor</QualityGatesEffectiveMode>
   </PropertyGroup>
   <PropertyGroup Condition="'$(QualityGatesEnabled)' != 'false'">
     <TreatWarningsAsErrors Condition="'$(TreatWarningsAsErrors)' == ''">true</TreatWarningsAsErrors>
@@ -12,8 +21,8 @@
     <QualityGatesLayer Condition="'$(QualityGatesLayer)' == '' and ($(MSBuildProjectName.EndsWith('.Domain')) or $(MSBuildProjectName.EndsWith('.Application')))">core</QualityGatesLayer>
     <QualityGatesLayer Condition="'$(QualityGatesLayer)' == ''">adapter</QualityGatesLayer>
     <Deterministic Condition="'$(Deterministic)' == ''">true</Deterministic>
-    <AnalysisLevel Condition="'$(AnalysisLevel)' == '' and '$(QualityGatesProfile)' == 'legacy-ratchet'">latest-recommended</AnalysisLevel>
-    <AnalysisLevel Condition="'$(AnalysisLevel)' == ''">latest-all</AnalysisLevel>
+    <AnalysisLevel Condition="'$(AnalysisLevel)' == '' and '$(QualityGatesProfile)' == 'legacy-ratchet'">10.0-recommended</AnalysisLevel>
+    <AnalysisLevel Condition="'$(AnalysisLevel)' == ''">10.0-all</AnalysisLevel>
     <QualityGatesRepoRoot Condition="'$(QualityGatesRepoRoot)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'Directory.Build.props'))</QualityGatesRepoRoot>
     <QualityGatesRepoRoot Condition="'$(QualityGatesRepoRoot)' == ''">$(MSBuildProjectDirectory)</QualityGatesRepoRoot>
     <QualityGatesGrandfatheredDir Condition="'$(QualityGatesGrandfatheredDir)' == ''">$([MSBuild]::EnsureTrailingSlash('$(QualityGatesRepoRoot)'))quality/grandfathered/</QualityGatesGrandfatheredDir>
