@@ -26,6 +26,11 @@ public sealed class ArchitectureConfig
     /// <summary>ArchUnitNET slice pattern for the cycle check, for example "MyApp.(*)" or "(**)" for every namespace.</summary>
     public string CycleSlicePattern { get; set; } = "(**)";
 
+    public bool CheckTypeCycles { get; set; } = true;
+
+    /// <summary>Path of the known type cycles JSON ({"cycles": [["A","B"]]}); relative paths resolve against the repository root. Missing file means no cycle is tolerated.</summary>
+    public string TypeCycleBaselinePath { get; set; } = "quality/type-cycles.json";
+
     /// <summary>Default hexagonal layout: Domain, Application (ports), Adapters, Host. Namespaces and projects are named {root}.{Layer}[.*].</summary>
     public static ArchitectureConfig Hexagonal(string root)
     {

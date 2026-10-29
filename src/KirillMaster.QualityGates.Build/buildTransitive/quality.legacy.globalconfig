@@ -1,0 +1,11 @@
+is_global = true
+global_level = -40
+
+dotnet_diagnostic.QG0007.severity = warning
+dotnet_diagnostic.QG0008.severity = warning
+dotnet_diagnostic.QG0033.severity = suggestion
+dotnet_diagnostic.QG0034.severity = suggestion
+dotnet_diagnostic.QG0035.severity = suggestion
+dotnet_diagnostic.QG0036.severity = suggestion
+dotnet_diagnostic.QG0050.severity = suggestion
+dotnet_diagnostic.QG0051.severity = suggestion

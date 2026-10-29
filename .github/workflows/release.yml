@@ -27,7 +27,7 @@ jobs:
         with:
           dotnet-version: |
             8.0.x
-            9.0.x
+            10.0.x
       - name: Resolve version
         env:
           REF_NAME: ${{ github.ref_name }}

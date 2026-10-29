@@ -83,7 +83,7 @@ public static class RepositoryRules
         var inline = 0;
         foreach (var file in EnumerateFiles(root, "*.cs"))
         {
-            var count = Suppression.Matches(File.ReadAllText(file)).Count;
+            var count = Suppression.Count(File.ReadAllText(file));
             if (file.Replace('\\', '/').Contains("/quality/grandfathered/", StringComparison.Ordinal))
             {
                 grandfathered += count;

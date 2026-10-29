@@ -50,6 +50,19 @@ public abstract class HexagonalArchitectureTests
 
     [Fact]
     [Trait("Category", "Architecture")]
+    public void Types_have_no_new_cycles()
+    {
+        if (Config.CheckTypeCycles)
+        {
+            var path = Path.IsPathRooted(Config.TypeCycleBaselinePath) ? Config.TypeCycleBaselinePath : Path.Combine(RepositoryRoot ?? Directory.GetCurrentDirectory(), Config.TypeCycleBaselinePath);
+            var assemblies = Assemblies.ToArray();
+            var found = TypeCycles.New(TypeCycles.Find(ArchitectureRules.Load(assemblies), assemblies), TypeCycleBaseline.FromFile(path));
+            Assert.True(found.Count == 0, "New type cycles (add to " + Config.TypeCycleBaselinePath + " only to tolerate): " + string.Join("; ", found.Select(c => string.Join(" <-> ", c))));
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "Architecture")]
     public void Project_references_follow_layers()
     {
         var root = RepositoryRoot;

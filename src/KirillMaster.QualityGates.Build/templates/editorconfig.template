@@ -31,6 +31,14 @@ indent_size = 2
 # qg_max_parameters = 5
 # qg_max_dependencies = 7
 # qg_max_asserts = 5
+# qg_max_cognitive_complexity = 15
+# qg_max_method_fan_out = 10
+# qg_min_shallow_methods = 3
+# qg_max_pass_through_percent = 75
+# qg_banned_name_suffixes = Helper,Helpers,Util,Utils,Utility,Utilities,Manager,Misc,Stuff,Thing,Impl,Holder,Common
+# qg_abbreviation_tokens = svc,cmd,evt,src,mgr,cfg,tmp,num,req,res,opt,str,cb
+
+# QG0007, QG0008, QG0033-QG0036, QG0050, QG0051: warning in strict; legacy-ratchet makes QG0033-QG0036, QG0050, QG0051 suggestions
 
 # Opt-in analyzers (disabled by default)
 # dotnet_diagnostic.QG0031.severity = warning

@@ -1,0 +1,9 @@
+is_global = true
+global_level = 100
+
+dotnet_analyzer_diagnostic.category-QualityGates.Design.severity = error
+dotnet_analyzer_diagnostic.category-QualityGates.Errors.severity = error
+dotnet_analyzer_diagnostic.category-QualityGates.Hygiene.severity = error
+dotnet_analyzer_diagnostic.category-QualityGates.Naming.severity = error
+dotnet_analyzer_diagnostic.category-QualityGates.Size.severity = error
+dotnet_analyzer_diagnostic.category-QualityGates.Testing.severity = error
