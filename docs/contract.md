@@ -3,6 +3,7 @@
 The two packages share no code. They share only:
 
 1. MSBuild property names: `QualityGatesEnabled`, `QualityGatesLayer` (`core|adapter|test|excluded`), `QualityGatesProfile`.
+   This package adds `QualityGatesMode` (`adopt|refactor`, env `QUALITYGATES_MODE`) and `QualityGatesRefactorScope`; the company package may ignore them.
 2. The `quality-report.json` format, so one orchestration plugin can read both.
 
 ## quality-report.json
