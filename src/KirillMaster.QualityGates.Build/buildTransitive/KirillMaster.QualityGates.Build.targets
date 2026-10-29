@@ -1,12 +1,28 @@
 <Project>
-  <PropertyGroup Condition="'$(QualityGatesEnabled)' != 'false' and '$(QualityGatesEffectiveMode)' == 'refactor'">
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-  </PropertyGroup>
+  <!-- Mode: QualityGatesMode (adopt default | refactor); QUALITYGATES_MODE env var is read when the property is empty.
+       QualityGatesRefactorScope: optional ';' list of project-name prefixes (trailing * allowed, blanks skipped); projects outside keep adopt. -->
   <PropertyGroup Condition="'$(QualityGatesEnabled)' != 'false'">
+    <QualityGatesMode Condition="'$(QualityGatesMode)' == ''">$(QUALITYGATES_MODE)</QualityGatesMode>
+    <QualityGatesMode Condition="'$(QualityGatesMode)' == ''">adopt</QualityGatesMode>
+    <QualityGatesEffectiveMode>adopt</QualityGatesEffectiveMode>
     <QualityGatesGrandfatheredFile>$(QualityGatesGrandfatheredDir)$(MSBuildProjectName).GlobalSuppressions.cs</QualityGatesGrandfatheredFile>
   </PropertyGroup>
+  <ItemGroup Condition="'$(QualityGatesEnabled)' != 'false' and '$(QualityGatesMode)' == 'refactor'">
+    <_QualityGatesScope Include="$([MSBuild]::Unescape($(QualityGatesRefactorScope.Replace('*', ''))))">
+      <Hit>$(MSBuildProjectName.StartsWith('%(Identity)', System.StringComparison.Ordinal))</Hit>
+    </_QualityGatesScope>
+    <_QualityGatesRefactor Include="$(MSBuildProjectName)" Condition="'@(_QualityGatesScope)' == '' or @(_QualityGatesScope->AnyHaveMetadataValue('Hit', 'True'))" />
+  </ItemGroup>
   <ItemGroup Condition="'$(QualityGatesEnabled)' != 'false'">
     <AdditionalFiles Condition="'$(QualityGatesBannedSymbols)' != 'false'" Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
-    <Compile Condition="'$(QualityGatesEffectiveMode)' != 'refactor' and Exists('$(QualityGatesGrandfatheredFile)')" Include="$(QualityGatesGrandfatheredFile)" Link="quality/GlobalSuppressions.Grandfathered.cs" />
+    <Compile Condition="'@(_QualityGatesRefactor)' == '' and Exists('$(QualityGatesGrandfatheredFile)')" Include="$(QualityGatesGrandfatheredFile)" Link="quality/GlobalSuppressions.Grandfathered.cs" />
+    <GlobalAnalyzerConfigFiles Condition="'@(_QualityGatesRefactor)' != ''" Include="$(MSBuildThisFileDirectory)quality.refactor.globalconfig" />
   </ItemGroup>
+  <!-- Items cannot feed property conditions at evaluation, so the effective mode and TreatWarningsAsErrors are set here, before compilation. -->
+  <Target Name="QualityGatesResolveMode" BeforeTargets="CoreCompile" Condition="'$(QualityGatesEnabled)' != 'false'">
+    <PropertyGroup Condition="'@(_QualityGatesRefactor)' != ''">
+      <QualityGatesEffectiveMode>refactor</QualityGatesEffectiveMode>
+      <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    </PropertyGroup>
+  </Target>
 </Project>

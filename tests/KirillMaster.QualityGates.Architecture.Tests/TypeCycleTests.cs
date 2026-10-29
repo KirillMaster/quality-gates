@@ -15,6 +15,15 @@ namespace Shop
     public class Lambdas { public int Run() { System.Func<Lambdas, int> f = x => x.Run(); return f(this); } }
 }";
 
+    private const string ClosedByGenerated = @"
+namespace Shop
+{
+    public class P { public async System.Threading.Tasks.Task Run() { await System.Threading.Tasks.Task.Yield(); new Q().Touch(); } }
+    public class Q { public void Touch() { System.Func<P> f = () => new P(); f(); } }
+    public class R { public System.Func<S> Make() => () => new S(); }
+    public class S { public R? Owner { get; set; } }
+}";
+
     private static IReadOnlyList<IReadOnlyList<string>> Find(Assembly assembly) => TypeCycles.Find(ArchitectureRules.Load([assembly]), [assembly]);
 
     [Fact]
@@ -24,6 +33,18 @@ namespace Shop
 
         Assert.Equal([["Shop.A", "Shop.B", "Shop.C"]], cycles);
     }
+
+    [Fact]
+    public void Cycles_closed_only_through_async_and_lambda_code_are_found()
+    {
+        var cycles = Find(FixtureCompiler.Compile("ShopGeneratedCycles", ClosedByGenerated));
+
+        Assert.Equal([["Shop.P", "Shop.Q"], ["Shop.R", "Shop.S"]], cycles);
+    }
+
+    [Fact]
+    public void Null_baseline_cycles_are_treated_as_empty() =>
+        Assert.Empty(TypeCycleBaseline.FromJson("""{"cycles": null}""").Cycles);
 
     [Fact]
     public void Acyclic_assembly_has_no_cycles() =>

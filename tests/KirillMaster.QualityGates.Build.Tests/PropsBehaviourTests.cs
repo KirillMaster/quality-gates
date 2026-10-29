@@ -73,11 +73,33 @@ public sealed class PropsBehaviourTests
     [InlineData("Shop.Adapters", "Other.*;Shop.Adapt", "refactor")]
     [InlineData("Shop.Adapters", "Other.*", "adopt")]
     [InlineData("Shop.Adapters", "Adapters", "adopt")]
+    [InlineData("Shop.Adapters", "Other.*;;Shop.Adapt", "refactor")]
+    [InlineData("Shop.Adapters", "Other.*; Shop.Adapt", "refactor")]
+    [InlineData("Shop.Adapters", ";;", "refactor")]
+    [InlineData("Shop.Adapters", "Other.*;;", "adopt")]
     public void Refactor_scope_limits_the_mode(string project, string scope, string expected)
     {
         using var evaluation = new PropsEvaluation(project);
         var p = evaluation.Properties(Names, Msbuild(("QualityGatesMode", "refactor"), ("QualityGatesRefactorScope", scope)));
         Assert.Equal(expected, p["QualityGatesEffectiveMode"]);
+    }
+
+    [Fact]
+    public void Mode_set_in_project_body_counts()
+    {
+        using var evaluation = new PropsEvaluation(properties: "<QualityGatesMode>refactor</QualityGatesMode>");
+        evaluation.AddGrandfathered();
+        Assert.Equal("refactor", evaluation.Properties(Names)["QualityGatesEffectiveMode"]);
+        Assert.False(evaluation.CompilesGrandfathered());
+    }
+
+    [Fact]
+    public void Refactor_raises_severity_through_its_globalconfig_for_in_scope_projects_only()
+    {
+        using var evaluation = new PropsEvaluation();
+        Assert.DoesNotContain("quality.refactor.globalconfig", evaluation.GlobalConfigs());
+        Assert.Contains("quality.refactor.globalconfig", evaluation.GlobalConfigs(Msbuild(("QualityGatesMode", "refactor"))));
+        Assert.DoesNotContain("quality.refactor.globalconfig", evaluation.GlobalConfigs(Msbuild(("QualityGatesMode", "refactor"), ("QualityGatesRefactorScope", "Other"))));
     }
 
     [Fact]

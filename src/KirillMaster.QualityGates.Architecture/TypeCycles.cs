@@ -10,7 +10,11 @@ public sealed class TypeCycleBaseline
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true, ReadCommentHandling = JsonCommentHandling.Skip, WriteIndented = true };
 
-    public List<List<string>> Cycles { get; set; } = [];
+    public List<List<string>> Cycles
+    {
+        get;
+        set => field = value ?? [];
+    } = [];
 
     public static TypeCycleBaseline FromJson(string json) =>
         JsonSerializer.Deserialize<TypeCycleBaseline>(json, JsonOptions)
@@ -36,25 +40,45 @@ public static class TypeCycles
     public static IReadOnlyList<IReadOnlyList<string>> Find(ArchUnitNET.Domain.Architecture architecture, IEnumerable<Assembly> assemblies)
     {
         var names = assemblies.Select(a => a.GetName().Name).ToHashSet(StringComparer.Ordinal);
-        var nodes = architecture.Types
-            .Where(t => !IsCompilerGenerated(t.FullName) && names.Contains(t.Assembly.Name))
-            .ToDictionary(t => t.FullName, StringComparer.Ordinal);
-        var edges = nodes.ToDictionary(
-            n => n.Key,
-            n => n.Value.Dependencies
-                .Select(d => d.Target.FullName)
-                .Where(target => target != n.Key && nodes.ContainsKey(target) && !IsEnclosing(target, n.Key))
-                .Distinct(StringComparer.Ordinal)
-                .ToArray(),
-            StringComparer.Ordinal);
-        return [.. StronglyConnected(edges).Where(c => c.Count > 1).OrderBy(c => c[0], StringComparer.Ordinal)];
+        var inScope = architecture.Types.Where(t => names.Contains(t.Assembly.Name)).ToArray();
+        var nodes = inScope.Select(t => Owner(t.FullName)).OfType<string>().ToHashSet(StringComparer.Ordinal);
+        var edges = nodes.ToDictionary(n => n, _ => new HashSet<string>(StringComparer.Ordinal), StringComparer.Ordinal);
+        foreach (var type in inScope)
+        {
+            var source = Owner(type.FullName);
+            if (source is null)
+            {
+                continue;
+            }
+
+            foreach (var target in type.Dependencies.Select(d => Owner(d.Target.FullName)))
+            {
+                if (target is not null && target != source && nodes.Contains(target) && !IsEnclosing(target, source))
+                {
+                    edges[source].Add(target);
+                }
+            }
+        }
+
+        return [.. StronglyConnected(edges.ToDictionary(e => e.Key, e => e.Value.ToArray(), StringComparer.Ordinal)).Where(c => c.Count > 1).OrderBy(c => c[0], StringComparer.Ordinal)];
     }
 
     /// <summary>Cycles that are not in the baseline.</summary>
     public static IReadOnlyList<IReadOnlyList<string>> New(IEnumerable<IReadOnlyList<string>> cycles, TypeCycleBaseline baseline) =>
         [.. cycles.Where(c => !baseline.Contains(c))];
 
-    private static bool IsCompilerGenerated(string fullName) => fullName.Contains('<', StringComparison.Ordinal);
+    /// <summary>The type itself, or for compiler-generated types (state machines, closures) the nearest declaring type; null when there is none.</summary>
+    private static string? Owner(string fullName)
+    {
+        var generated = fullName.IndexOf('<', StringComparison.Ordinal);
+        if (generated < 0)
+        {
+            return fullName;
+        }
+
+        var plus = fullName.LastIndexOf('+', generated);
+        return plus < 0 ? null : fullName[..plus];
+    }
 
     private static bool IsEnclosing(string candidate, string nested) => nested.StartsWith(candidate + "+", StringComparison.Ordinal);
 

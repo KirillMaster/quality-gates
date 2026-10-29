@@ -1,17 +1,9 @@
 <Project>
   <!-- Opt out with QualityGatesEnabled=false (Directory.Build.props or /p:). Profiles: strict (default) | legacy-ratchet.
-       Modes: adopt (default) | refactor; QUALITYGATES_MODE env var is read when QualityGatesMode is empty.
-       QualityGatesRefactorScope (optional, ';' list of project-name prefixes, trailing * allowed) limits refactor to matching projects. -->
+       Modes (adopt | refactor, QualityGatesRefactorScope) are resolved in the .targets so a value set in the project body counts. -->
   <PropertyGroup>
     <QualityGatesEnabled Condition="'$(QualityGatesEnabled)' == ''">true</QualityGatesEnabled>
     <QualityGatesProfile Condition="'$(QualityGatesProfile)' == ''">strict</QualityGatesProfile>
-    <QualityGatesMode Condition="'$(QualityGatesMode)' == ''">$(QUALITYGATES_MODE)</QualityGatesMode>
-    <QualityGatesMode Condition="'$(QualityGatesMode)' == ''">adopt</QualityGatesMode>
-    <QualityGatesEffectiveMode>adopt</QualityGatesEffectiveMode>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(QualityGatesMode)' == 'refactor'">
-    <_QualityGatesScopePattern>$(QualityGatesRefactorScope.Trim(';').Replace('.', '\.').Replace('*', '.*').Replace(';', '|'))</_QualityGatesScopePattern>
-    <QualityGatesEffectiveMode Condition="'$(_QualityGatesScopePattern)' == '' or $([System.Text.RegularExpressions.Regex]::IsMatch('$(MSBuildProjectName)', '^(?:$(_QualityGatesScopePattern))'))">refactor</QualityGatesEffectiveMode>
   </PropertyGroup>
   <PropertyGroup Condition="'$(QualityGatesEnabled)' != 'false'">
     <TreatWarningsAsErrors Condition="'$(TreatWarningsAsErrors)' == ''">true</TreatWarningsAsErrors>

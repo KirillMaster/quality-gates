@@ -13,7 +13,9 @@ internal sealed class PropsEvaluation : IDisposable
         ProjectName = projectName;
         Directory.CreateDirectory(directory);
         File.WriteAllText(Path.Combine(directory, "Directory.Build.props"), "<Project />");
-        var transitive = Path.Combine(FindRepositoryRoot(), "src", "KirillMaster.QualityGates.Build", "buildTransitive");
+        var root = FindRepositoryRoot();
+        File.Copy(Path.Combine(root, "global.json"), Path.Combine(directory, "global.json"));
+        var transitive = Path.Combine(root, "src", "KirillMaster.QualityGates.Build", "buildTransitive");
         File.WriteAllText(
             Path.Combine(directory, projectName + ".csproj"),
             $"""
@@ -39,7 +41,7 @@ internal sealed class PropsEvaluation : IDisposable
     public IReadOnlyDictionary<string, string> Properties(IEnumerable<string> names, IDictionary<string, string>? msbuild = null, IDictionary<string, string>? environment = null)
     {
         var list = names.ToArray();
-        var arguments = new List<string> { "msbuild", ProjectName + ".csproj", "-nologo", "-getProperty:" + string.Join(',', list) };
+        var arguments = new List<string> { "msbuild", ProjectName + ".csproj", "-nologo", "-t:QualityGatesResolveMode", "-getProperty:" + string.Join(',', list) };
         arguments.AddRange((msbuild ?? new Dictionary<string, string>()).Select(p => $"-p:{p.Key}={p.Value.Replace(";", "%3B", StringComparison.Ordinal)}"));
         using var json = JsonDocument.Parse(Run(arguments, environment));
         var values = json.RootElement.GetProperty("Properties");
@@ -53,6 +55,14 @@ internal sealed class PropsEvaluation : IDisposable
         using var json = JsonDocument.Parse(Run(arguments, null));
         return json.RootElement.GetProperty("Items").GetProperty("Compile").EnumerateArray()
             .Any(i => i.GetProperty("Identity").GetString()!.EndsWith("GlobalSuppressions.cs", StringComparison.Ordinal));
+    }
+
+    public IReadOnlyList<string> GlobalConfigs(IDictionary<string, string>? msbuild = null)
+    {
+        var arguments = new List<string> { "msbuild", ProjectName + ".csproj", "-nologo", "-getItem:GlobalAnalyzerConfigFiles" };
+        arguments.AddRange((msbuild ?? new Dictionary<string, string>()).Select(p => $"-p:{p.Key}={p.Value.Replace(";", "%3B", StringComparison.Ordinal)}"));
+        using var json = JsonDocument.Parse(Run(arguments, null));
+        return [.. json.RootElement.GetProperty("Items").GetProperty("GlobalAnalyzerConfigFiles").EnumerateArray().Select(i => Path.GetFileName(i.GetProperty("Identity").GetString()!))];
     }
 
     public void Dispose() => Directory.Delete(directory, recursive: true);
