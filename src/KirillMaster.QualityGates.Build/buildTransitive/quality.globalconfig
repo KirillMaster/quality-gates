@@ -46,3 +46,12 @@ dotnet_diagnostic.MA0011.severity = error
 dotnet_diagnostic.MA0074.severity = error
 dotnet_diagnostic.MA0076.severity = error
 dotnet_diagnostic.MA0132.severity = error
+
+dotnet_diagnostic.QG0007.severity = warning
+dotnet_diagnostic.QG0008.severity = warning
+dotnet_diagnostic.QG0033.severity = warning
+dotnet_diagnostic.QG0034.severity = warning
+dotnet_diagnostic.QG0035.severity = warning
+dotnet_diagnostic.QG0036.severity = warning
+dotnet_diagnostic.QG0050.severity = warning
+dotnet_diagnostic.QG0051.severity = warning

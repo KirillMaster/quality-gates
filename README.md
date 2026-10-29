@@ -29,8 +29,8 @@ Property names are shared with the company package so one tool can drive both; t
 |---|---|---|
 | `QualityGatesEnabled` | `true` | `false` turns everything off (set in `Directory.Build.props` or `/p:`) |
 | `QualityGatesProfile` | `strict` | `strict` = `AnalysisLevel 10.0-all`; `legacy-ratchet` = `10.0-recommended` plus grandfathered suppressions |
-| `QualityGatesMode` | `adopt` (env `QUALITYGATES_MODE` when empty) | `adopt` compiles grandfathered suppressions; `refactor` does not compile them and forces `TreatWarningsAsErrors=true` |
-| `QualityGatesRefactorScope` | empty (all projects) | `;` list of project-name prefixes (`Shop.Orders*;Shop.Billing`); projects outside the scope stay in `adopt` |
+| `QualityGatesMode` | `adopt` (env `QUALITYGATES_MODE` when empty) | `adopt` compiles grandfathered suppressions; `refactor` does not compile them, forces `TreatWarningsAsErrors=true` and raises every `QG*` rule to error (see Refactor mode); the mode can also be set in the project body |
+| `QualityGatesRefactorScope` | empty (all projects) | `;` list of project-name prefixes (`Shop.Orders*;Shop.Billing`, blanks and spaces ignored, trailing `*` optional); projects outside the scope stay in `adopt` |
 | `EnforceCodeStyleInBuild`, `AnalysisLevel` | `true`, pinned by profile | defaults only; values set by the consumer win. `AnalysisLevel` is never `latest` so SDK upgrades do not change the rules |
 | `QualityGatesLayer` | derived | `core` (`*.Domain`, `*.Application`), `test` (`*.Tests`, relaxed test config), `adapter` |
 | `QualityGatesBannedSymbols` | `true` | `false` drops `BannedSymbols.txt` |
@@ -71,7 +71,13 @@ Set `QualityGatesProfile=legacy-ratchet`, put existing violations into `quality/
 
 ### Refactor mode
 
-`QualityGatesMode=refactor` (or `QUALITYGATES_MODE=refactor`) stops compiling `quality/grandfathered/*.GlobalSuppressions.cs`, so every grandfathered violation shows up as an error. Use `QualityGatesRefactorScope` to work on a few projects at a time; the rest keep adopt behaviour.
+`QualityGatesMode=refactor` (property in `Directory.Build.props` or the project, `/p:`, or env `QUALITYGATES_MODE`) does three things for in-scope projects:
+
+1. Stops compiling `quality/grandfathered/*.GlobalSuppressions.cs`, so every grandfathered violation is an error again.
+2. Sets `TreatWarningsAsErrors=true`, even when the project sets `false`.
+3. Adds `quality.refactor.globalconfig` (`global_level = 100`), which sets all `QualityGates.*` analyzer categories (Design, Errors, Hygiene, Naming, Size, Testing) to error. This also enables the opt-in QG0031/QG0032 and overrides the legacy-ratchet suggestions for QG0033-QG0036, QG0050, QG0051. Curated third-party analyzers and `AnalysisLevel` are not changed (they already follow the profile); an `.editorconfig` entry still wins over the globalconfig.
+
+Use `QualityGatesRefactorScope` to work on a few projects at a time; the rest keep adopt behaviour. Mode and scope are resolved in the package `.targets`, and `TreatWarningsAsErrors` is applied by the `QualityGatesResolveMode` target before compilation.
 
 ## Gates and where they run
 

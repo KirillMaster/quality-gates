@@ -103,6 +103,14 @@ public sealed class PropsBehaviourTests
     }
 
     [Fact]
+    public void Legacy_ratchet_adds_the_profile_globalconfig()
+    {
+        using var evaluation = new PropsEvaluation();
+        Assert.DoesNotContain("quality.legacy.globalconfig", evaluation.GlobalConfigs());
+        Assert.Contains("quality.legacy.globalconfig", evaluation.GlobalConfigs(Msbuild(("QualityGatesProfile", "legacy-ratchet"))));
+    }
+
+    [Fact]
     public void Out_of_scope_project_keeps_grandfathered_file()
     {
         using var evaluation = new PropsEvaluation();
