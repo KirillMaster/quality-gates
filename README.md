@@ -1,6 +1,6 @@
 # quality-gates
 
-Reusable quality gates for modern .NET (net8 / net9). MIT licensed.
+Reusable quality gates for modern .NET (net8 / net10). MIT licensed.
 
 | Package | Purpose |
 |---|---|

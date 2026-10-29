@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFrameworks>net8.0;net9.0</TargetFrameworks>
+    <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
     <PackageId>KirillMaster.QualityGates.Architecture</PackageId>
     <Description>ArchUnitNET-based hexagonal layering test base with config-driven rules and repository meta-tests (settings locked, central package versions, suppression ratchet).</Description>
     <PackageTags>quality;architecture;archunit;hexagonal;tests;quality-gates</PackageTags>
