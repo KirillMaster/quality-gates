@@ -2,20 +2,22 @@ namespace KirillMaster.QualityGates.Analyzers;
 
 internal sealed class CognitiveComplexity : CSharpSyntaxWalker
 {
-    private readonly string _name;
+    private readonly ISymbol? _owner;
+    private readonly SemanticModel _model;
     private int _nesting;
     private bool _recursionCounted;
 
-    private CognitiveComplexity(string name)
+    private CognitiveComplexity(ISymbol? owner, SemanticModel model)
     {
-        _name = name;
+        _owner = owner?.OriginalDefinition;
+        _model = model;
     }
 
     public int Score { get; private set; }
 
-    public static int Of(SyntaxNode body, string name)
+    public static int Of(SyntaxNode body, ISymbol? owner, SemanticModel model)
     {
-        var walker = new CognitiveComplexity(name);
+        var walker = new CognitiveComplexity(owner, model);
         walker.Visit(body);
         return walker.Score;
     }
@@ -104,7 +106,7 @@ internal sealed class CognitiveComplexity : CSharpSyntaxWalker
 
     public override void VisitInvocationExpression(InvocationExpressionSyntax node)
     {
-        if (!_recursionCounted && IsSelfCall(node.Expression))
+        if (!_recursionCounted && IsSelfCall(node))
         {
             _recursionCounted = true;
             Score += 1;
@@ -124,12 +126,9 @@ internal sealed class CognitiveComplexity : CSharpSyntaxWalker
         return parent;
     }
 
-    private bool IsSelfCall(ExpressionSyntax expression) => expression switch
-    {
-        IdentifierNameSyntax id => id.Identifier.ValueText == _name,
-        MemberAccessExpressionSyntax { Expression: ThisExpressionSyntax } member => member.Name.Identifier.ValueText == _name,
-        _ => false,
-    };
+    private bool IsSelfCall(InvocationExpressionSyntax node) =>
+        _owner is not null
+        && SymbolEqualityComparer.Default.Equals(_model.GetSymbolInfo(node).Symbol?.OriginalDefinition, _owner);
 
     private void Structural(Action visit)
     {

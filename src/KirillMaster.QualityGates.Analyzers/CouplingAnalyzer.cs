@@ -21,13 +21,15 @@ public sealed class CouplingAnalyzer : QgAnalyzer
     public override ImmutableArray<DiagnosticDescriptor> SupportedDiagnostics { get; } = ImmutableArray.Create(
         Descriptors.MethodFanOut, Descriptors.NoServiceLocator);
 
-    protected override void Register(AnalysisContext context)
-    {
-        context.RegisterOperationBlockAction(AnalyzeFanOut);
-        context.RegisterOperationAction(AnalyzeLocator, OperationKind.Invocation);
-    }
+    protected override void Register(AnalysisContext context) =>
+        context.RegisterCompilationStartAction(start =>
+        {
+            var config = new CompilationConfig(start.Options, start.Compilation);
+            start.RegisterOperationBlockAction(c => AnalyzeFanOut(c, config));
+            start.RegisterOperationAction(c => AnalyzeLocator(c, config), OperationKind.Invocation);
+        });
 
-    private static void AnalyzeFanOut(OperationBlockAnalysisContext context)
+    private static void AnalyzeFanOut(OperationBlockAnalysisContext context, CompilationConfig config)
     {
         if (context.OwningSymbol is not IMethodSymbol { MethodKind: MethodKind.Ordinary, DeclaringSyntaxReferences.Length: > 0 } method)
         {
@@ -35,12 +37,12 @@ public sealed class CouplingAnalyzer : QgAnalyzer
         }
 
         var syntax = method.DeclaringSyntaxReferences[0].GetSyntax(context.CancellationToken);
-        if (CompositionRoot.IsExempt(context.Options, context.Compilation, syntax))
+        if (config.IsCompositionRoot(syntax))
         {
             return;
         }
 
-        var ignored = Thresholds.GetList(context.Options, syntax.SyntaxTree, "qg_fan_out_ignored_assemblies", Descriptors.FanOutIgnoredAssemblies);
+        var ignored = config.List(syntax.SyntaxTree, "qg_fan_out_ignored_assemblies", Descriptors.FanOutIgnoredAssemblies);
         var callees = new HashSet<IMethodSymbol>(SymbolEqualityComparer.Default);
         foreach (var invocation in context.OperationBlocks.SelectMany(b => b.DescendantsAndSelf()).OfType<IInvocationOperation>())
         {
@@ -61,13 +63,13 @@ public sealed class CouplingAnalyzer : QgAnalyzer
         }
     }
 
-    private static void AnalyzeLocator(OperationAnalysisContext context)
+    private static void AnalyzeLocator(OperationAnalysisContext context, CompilationConfig config)
     {
         var target = ((IInvocationOperation)context.Operation).TargetMethod;
         if (!LocatorMethods.Contains(target.Name)
             || target.ContainingType is null
             || !LocatorTypes.Contains(target.ContainingType.ToDisplayString())
-            || CompositionRoot.IsExempt(context.Options, context.Compilation, context.Operation.Syntax))
+            || config.IsCompositionRoot(context.Operation.Syntax))
         {
             return;
         }
@@ -75,17 +77,17 @@ public sealed class CouplingAnalyzer : QgAnalyzer
         context.ReportDiagnostic(Diagnostic.Create(Descriptors.NoServiceLocator, context.Operation.Syntax.GetLocation(), target.Name));
     }
 
-    private static bool IsSameType(INamedTypeSymbol type, INamedTypeSymbol? current)
+    private static bool IsSameType(INamedTypeSymbol type, INamedTypeSymbol? current) =>
+        current is not null && SymbolEqualityComparer.Default.Equals(Outermost(type).OriginalDefinition, Outermost(current).OriginalDefinition);
+
+    private static INamedTypeSymbol Outermost(INamedTypeSymbol type)
     {
-        for (var t = type; t is not null; t = t.ContainingType)
+        while (type.ContainingType is { } outer)
         {
-            if (SymbolEqualityComparer.Default.Equals(t.OriginalDefinition, current?.OriginalDefinition))
-            {
-                return true;
-            }
+            type = outer;
         }
 
-        return false;
+        return type;
     }
 
     private static bool IsIgnored(INamedTypeSymbol type, ImmutableHashSet<string> prefixes)
@@ -98,5 +100,5 @@ public sealed class CouplingAnalyzer : QgAnalyzer
     private static bool IsData(INamedTypeSymbol type) =>
         type.TypeKind is TypeKind.Enum or TypeKind.Delegate
         || type.IsRecord
-        || !type.GetMembers().OfType<IMethodSymbol>().Any(m => m.MethodKind == MethodKind.Ordinary);
+        || (type.TypeKind is not TypeKind.Interface && !type.GetMembers().OfType<IMethodSymbol>().Any(m => m.MethodKind == MethodKind.Ordinary));
 }

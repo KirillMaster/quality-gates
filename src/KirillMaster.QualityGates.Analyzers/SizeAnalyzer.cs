@@ -59,7 +59,7 @@ public sealed class SizeAnalyzer : QgAnalyzer
         if (context.Node is not LocalFunctionStatementSyntax)
         {
             var maxCognitive = Thresholds.Get(context.Options, tree, "qg_max_cognitive_complexity", Descriptors.MaxCognitiveComplexity);
-            var cognitive = CognitiveComplexity.Of(body, name);
+            var cognitive = CognitiveComplexity.Of(body, context.SemanticModel.GetDeclaredSymbol(context.Node, context.CancellationToken), context.SemanticModel);
             if (cognitive > maxCognitive)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Descriptors.CognitiveComplexity, location, name, cognitive, maxCognitive));

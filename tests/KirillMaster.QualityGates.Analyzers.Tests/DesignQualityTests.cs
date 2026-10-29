@@ -24,7 +24,11 @@ public sealed class DesignQualityTests
         var below = await AnalyzerHarness.DiagnoseWithConfigAsync(source, ("qg_max_cognitive_complexity", (expected - 1).ToString(System.Globalization.CultureInfo.InvariantCulture)));
         var at = await AnalyzerHarness.DiagnoseWithConfigAsync(source, ("qg_max_cognitive_complexity", expected.ToString(System.Globalization.CultureInfo.InvariantCulture)));
 
-        Assert.Contains("QG0007", below);
+        if (expected > 0)
+        {
+            Assert.Contains("QG0007", below);
+        }
+
         Assert.DoesNotContain("QG0007", at);
     }
 
@@ -219,6 +223,82 @@ public sealed class DesignQualityTests
 
         Assert.Single(await AnalyzerHarness.DiagnoseWithConfigAsync(Source, ("qg_abbreviation_tokens", "foo")), "QG0051");
         Assert.Single(await AnalyzerHarness.DiagnoseAsync(Source), "QG0051");
+    }
+
+    [Fact]
+    public async Task Recursion_is_resolved_semantically()
+    {
+        const string Source = "class C { int F(int n) { return n; } int G(int n) { if (n <= 1) return 1; return n * F(n - 1) + new D().G(n); } } class D { public int G(int n) => n; }";
+
+        Assert.DoesNotContain("QG0007", await AnalyzerHarness.DiagnoseWithConfigAsync(Source, ("qg_max_cognitive_complexity", "1")));
+        Assert.Contains("QG0007", await AnalyzerHarness.DiagnoseWithConfigAsync(Source, ("qg_max_cognitive_complexity", "0")));
+    }
+
+    [Fact]
+    public async Task Partial_program_class_and_exempt_locations_are_accepted()
+    {
+        Assert.DoesNotContain("QG0035", await AnalyzerHarness.DiagnoseAsync("public partial class Program { }"));
+        Assert.DoesNotContain("QG0035", await AnalyzerHarness.DiagnoseInAssemblyAsync("public partial class P { }", "App.CompositionRoot"));
+        Assert.DoesNotContain("QG0035", await AnalyzerHarness.DiagnoseInAssemblyAsync("public partial class P { }", "App", "src/Controllers/P.cs"));
+    }
+
+    [Fact]
+    public async Task Partial_class_with_generator_attribute_on_another_part_is_accepted() =>
+        Assert.DoesNotContain("QG0035", await AnalyzerHarness.DiagnoseAsync(
+            "public partial class Vm { [ObservableProperty] private int _count; } public partial class Vm { }\n"
+            + "[System.AttributeUsage(System.AttributeTargets.Field)] public sealed class ObservablePropertyAttribute : System.Attribute { }"));
+
+    [Fact]
+    public async Task Pass_through_via_property_receiver_is_reported_and_zero_argument_forwarding_is_not()
+    {
+        const string Source = "public class Repo { public void Delete(int id) { } public void Clear() { } }\n"
+            + "public class Svc { private Repo Repo { get; } = new(); public void Delete(int id) => Repo.Delete(id); public void Clear() => Repo.Clear(); }";
+
+        var ids = await AnalyzerHarness.DiagnoseAsync(Source);
+
+        Assert.Single(ids, "QG0033");
+    }
+
+    [Fact]
+    public async Task Abbreviations_are_reported_in_every_local_form()
+    {
+        const string Source = "using System; using System.Collections.Generic; class C { void M(IEnumerable<(int, int)> pairs, object o) {"
+            + " for (var cfg = 0; cfg < 1; cfg++) { } foreach (var (src, _) in pairs) { } using var tmp = new System.IO.MemoryStream();"
+            + " int.TryParse(\"1\", out var num); if (o is int opt) { } Func<int, int> f = req => req; try { } catch (Exception str) { } void Local(int cb) { } } }";
+
+        var ids = await AnalyzerHarness.DiagnoseAsync(Source);
+
+        Assert.Equal(8, ids.Count(id => id == "QG0051"));
+    }
+
+    [Fact]
+    public async Task Invalid_negative_and_empty_config_values_fall_back_to_defaults()
+    {
+        var branches = string.Concat(Enumerable.Range(0, 11).Select(i => $"if (a == {i}) {{ return {i}; }}\n"));
+        var source = $"class C {{ int M(int a) {{ {branches} return 0; }} }}";
+
+        Assert.Contains("QG0003", await AnalyzerHarness.DiagnoseWithConfigAsync(source, ("qg_max_complexity", "-1")));
+        Assert.Contains("QG0003", await AnalyzerHarness.DiagnoseWithConfigAsync(source, ("qg_max_complexity", "abc")));
+        Assert.DoesNotContain("QG0003", await AnalyzerHarness.DiagnoseWithConfigAsync(source, ("qg_max_complexity", "50")));
+        Assert.DoesNotContain("QG0050", await AnalyzerHarness.DiagnoseWithConfigAsync("class FooHelper { }", ("qg_banned_name_suffixes", string.Empty)));
+    }
+
+    [Fact]
+    public async Task Service_locator_inside_registration_lambda_is_reported_outside_the_root() =>
+        Assert.Contains("QG0036", await AnalyzerHarness.DiagnoseInAssemblyAsync(
+            "using System;\nnamespace Microsoft.Extensions.DependencyInjection { public static class ServiceProviderServiceExtensions { public static T GetRequiredService<T>(this IServiceProvider p) where T : notnull => (T)p.GetService(typeof(T))!; } }\n"
+            + "class C { Func<IServiceProvider, C> Factory = sp => Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService<C>(sp); }",
+            "App.Features"));
+
+    [Fact]
+    public async Task Fan_out_ignores_calls_between_nested_and_outer_types()
+    {
+        var calls = string.Concat(Enumerable.Range(0, 11).Select(i => $"Outer.M{i}(); "));
+        var methods = string.Concat(Enumerable.Range(0, 11).Select(i => $"public static void M{i}() {{ }} "));
+
+        var ids = await AnalyzerHarness.DiagnoseAsync($"public class Outer {{ {methods} public class Nested {{ public void Run() {{ {calls} }} }} }}");
+
+        Assert.DoesNotContain("QG0008", ids);
     }
 
     private static string Other(int count) =>
