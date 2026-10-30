@@ -1,0 +1,6 @@
+M:System.Threading.Tasks.Task.Delay;Real delay in tests (T4/Z3): use FakeTimeProvider or await the condition
+M:System.Threading.Thread.Sleep;Real delay in tests (T4/Z3): use FakeTimeProvider or await the condition
+P:System.DateTime.Now;Real clock in tests (T4/Z3): use FakeTimeProvider
+P:System.DateTime.UtcNow;Real clock in tests (T4/Z3): use FakeTimeProvider
+P:System.DateTimeOffset.Now;Real clock in tests (T4/Z3): use FakeTimeProvider
+P:System.DateTimeOffset.UtcNow;Real clock in tests (T4/Z3): use FakeTimeProvider

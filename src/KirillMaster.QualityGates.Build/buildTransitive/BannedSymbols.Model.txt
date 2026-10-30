@@ -1,0 +1,3 @@
+N:Microsoft.Extensions.Options;Core.Model must not know IOptions (L4): pass plain values from the composition root
+N:Microsoft.Extensions.Logging;Core.Model must not log (L4): return results and let the use case log
+N:Microsoft.Extensions.Configuration;Core.Model must not read IConfiguration (L4): pass plain values from the composition root

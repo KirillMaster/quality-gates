@@ -9,7 +9,7 @@ namespace KirillMaster.QualityGates.Analyzers.Tests;
 internal static class AnalyzerHarness
 {
     private static readonly ImmutableArray<DiagnosticAnalyzer> All =
-        [new SizeAnalyzer(), new HygieneAnalyzer(), new ErrorsAnalyzer(), new DesignAnalyzer(), new TestAnalyzer(), new StructureAnalyzer(), new CouplingAnalyzer(), new NamingAnalyzer(), new ErrorFlowAnalyzer(), new ResultAnalyzer(), new PortShapeAnalyzer(), new TypeShapeAnalyzer(), new UsageAnalyzer(), new HardcodeAnalyzer()];
+        [new SizeAnalyzer(), new HygieneAnalyzer(), new ErrorsAnalyzer(), new DesignAnalyzer(), new TestAnalyzer(), new StructureAnalyzer(), new CouplingAnalyzer(), new NamingAnalyzer(), new ErrorFlowAnalyzer(), new ResultAnalyzer(), new PortShapeAnalyzer(), new TypeShapeAnalyzer(), new UsageAnalyzer(), new HardcodeAnalyzer(), new ConcurrencyAnalyzer()];
 
     private static readonly MetadataReference[] References =
         [.. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator).Select(p => MetadataReference.CreateFromFile(p))];

@@ -65,6 +65,14 @@ internal sealed class PropsEvaluation : IDisposable
         return [.. json.RootElement.GetProperty("Items").GetProperty("GlobalAnalyzerConfigFiles").EnumerateArray().Select(i => Path.GetFileName(i.GetProperty("Identity").GetString()!))];
     }
 
+    public IReadOnlyList<string> BannedSymbolFiles(IDictionary<string, string>? msbuild = null)
+    {
+        var arguments = new List<string> { "msbuild", ProjectName + ".csproj", "-nologo", "-getItem:AdditionalFiles" };
+        arguments.AddRange((msbuild ?? new Dictionary<string, string>()).Select(p => $"-p:{p.Key}={p.Value.Replace(";", "%3B", StringComparison.Ordinal)}"));
+        using var json = JsonDocument.Parse(Run(arguments, null));
+        return [.. json.RootElement.GetProperty("Items").GetProperty("AdditionalFiles").EnumerateArray().Select(i => Path.GetFileName(i.GetProperty("Identity").GetString()!)).Where(n => n.StartsWith("BannedSymbols", StringComparison.Ordinal))];
+    }
+
     public void Dispose() => Directory.Delete(directory, recursive: true);
 
     private static string FindRepositoryRoot()

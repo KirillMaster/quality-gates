@@ -1,0 +1,11 @@
+P:System.DateTime.Now;DateTime.Now is not testable in core code: use TimeProvider.GetLocalNow()
+P:System.DateTime.UtcNow;DateTime.UtcNow is not testable in core code: use TimeProvider.GetUtcNow()
+P:System.DateTime.Today;DateTime.Today is not testable in core code: use TimeProvider.GetLocalNow().Date
+P:System.DateTimeOffset.Now;DateTimeOffset.Now is not testable in core code: use TimeProvider.GetLocalNow()
+P:System.DateTimeOffset.UtcNow;DateTimeOffset.UtcNow is not testable in core code: use TimeProvider.GetUtcNow()
+T:System.Console;System.Console is an I/O side effect in core code: use ILogger or an injected abstraction
+T:System.Net.Http.HttpClient;HttpClient is an I/O dependency in core code: depend on an abstraction implemented in an adapter
+T:Microsoft.EntityFrameworkCore.DbContext;DbContext is a persistence dependency in core code: depend on a repository abstraction implemented in an adapter
+N:Amazon;Core must not depend on the AWS SDK: define a port and implement it in an adapter
+N:Npgsql;Core must not depend on the database driver: define a port and implement it in an adapter
+N:Newtonsoft.Json;Core must not depend on Newtonsoft.Json: serialize in an adapter (System.Text.Json at the edge)

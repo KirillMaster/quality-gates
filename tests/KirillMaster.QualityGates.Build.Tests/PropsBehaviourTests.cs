@@ -19,6 +19,27 @@ public sealed class PropsBehaviourTests
     }
 
     [Fact]
+    public void Design_bans_are_opt_in()
+    {
+        using var evaluation = new PropsEvaluation("Shop.Domain");
+        Assert.Equal(["BannedSymbols.txt"], evaluation.BannedSymbolFiles());
+    }
+
+    [Fact]
+    public void Design_bans_by_layer()
+    {
+        using var core = new PropsEvaluation("Shop.Domain");
+        using var model = new PropsEvaluation("Shop.Domain.Model", "<QualityGatesLayer>core</QualityGatesLayer>");
+        using var tests = new PropsEvaluation("Shop.Tests");
+        using var adapter = new PropsEvaluation("Shop.Adapters");
+        var on = Msbuild(("QualityGatesDesignBans", "true"));
+        Assert.Equal(["BannedSymbols.txt", "BannedSymbols.All.txt", "BannedSymbols.Core.txt", "BannedSymbols.CoreDesign.txt"], core.BannedSymbolFiles(on));
+        Assert.Contains("BannedSymbols.Model.txt", model.BannedSymbolFiles(on));
+        Assert.Equal(["BannedSymbols.txt", "BannedSymbols.All.txt", "BannedSymbols.Test.txt"], tests.BannedSymbolFiles(on));
+        Assert.Equal(["BannedSymbols.txt", "BannedSymbols.All.txt"], adapter.BannedSymbolFiles(on));
+    }
+
+    [Fact]
     public void Legacy_ratchet_pins_recommended()
     {
         using var evaluation = new PropsEvaluation();

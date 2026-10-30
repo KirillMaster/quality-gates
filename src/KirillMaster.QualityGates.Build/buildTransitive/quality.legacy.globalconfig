@@ -21,3 +21,5 @@ dotnet_diagnostic.QG0108.severity = warning
 dotnet_diagnostic.QG0109.severity = warning
 dotnet_diagnostic.QG0110.severity = warning
 dotnet_diagnostic.QG0111.severity = warning
+dotnet_diagnostic.QG0188.severity = warning
+dotnet_diagnostic.QG0189.severity = warning

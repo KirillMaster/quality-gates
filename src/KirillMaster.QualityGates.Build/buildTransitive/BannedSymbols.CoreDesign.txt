@@ -1,0 +1,15 @@
+M:System.IServiceProvider.GetService(System.Type);Service locator (NoServiceLocator): take the dependency through the constructor
+M:Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetService``1(System.IServiceProvider);Service locator (NoServiceLocator): take the dependency through the constructor
+M:Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService``1(System.IServiceProvider);Service locator (NoServiceLocator): take the dependency through the constructor
+M:Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetRequiredService(System.IServiceProvider,System.Type);Service locator (NoServiceLocator): take the dependency through the constructor
+M:Microsoft.Extensions.DependencyInjection.ServiceProviderServiceExtensions.GetServices``1(System.IServiceProvider);Service locator (NoServiceLocator): take the dependency through the constructor
+T:System.IServiceProvider;Core has no DI container (CoreNoContainer): inject the concrete dependencies
+T:Microsoft.Extensions.DependencyInjection.IServiceCollection;Core has no DI container (CoreNoContainer): register services in the composition root
+M:System.Guid.NewGuid;Guid.NewGuid is nondeterministic (Y11): inject an id generator port
+P:System.Random.Shared;Random.Shared is nondeterministic (Y11): inject a random port
+T:System.Threading.Interlocked;Shared mutable state in core (Z1): keep core state immutable or confine it to an adapter
+T:System.Threading.Monitor;Shared mutable state in core (Z1): keep core state immutable or confine it to an adapter
+T:System.Threading.Thread;Threads in core (Z1): use async and let the runner own concurrency
+M:System.Threading.Tasks.Task.Run;Task.Run in core (Z1): let the runner own concurrency
+N:Microsoft.AspNetCore;Core must not depend on ASP.NET Core (Z18): expose a port and implement it in an adapter
+N:MassTransit;Core must not depend on MassTransit (Z18): define a port and implement it in an adapter
