@@ -68,7 +68,7 @@ public sealed class MutationDiffGateTests
             return;
         }
 
-        var mutants = MutationReportParser.Parse(Report("statuses-mixed.json"), "C:\repo");
+        var mutants = MutationReportParser.Parse(Report("statuses-mixed.json"), "C:\\repo");
 
         mutants.Should().OnlyContain(m => m.File == "src/Sample.Domain/Calc.cs");
         mutants[0].Line.Should().Be(10);

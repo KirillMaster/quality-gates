@@ -1,15 +1,13 @@
 # Changelog
 
-<<<<<<< HEAD
 ## 0.5.0
 
 - Cli: new `KirillMaster.QualityGates.Cli` dotnet tool (`qg`), the generic gates CLI moved into core: commands `pr`, `mutation-diff`, `mutation-ratchet`, `nightly`, `audit`, `grandfather`, `baseline`. Domain, application and adapter layers live in one assembly (`Domain`, `Application`, `Adapters`, `Commands` namespaces). Organisation-specific analyzers, MSBuild package and CI pipeline scripts are not part of it. Tests ported (unit, fixtures, git integration).
-=======
+
 ## 0.4.1
 
 - Analyzers: QG0190 (Z5 ExhaustiveClosed): a catch-all arm on a `switch` over `bool`, bool tuples or a closed sealed hierarchy must throw. Enums stay with QG0022 (distinct case, no duplicate reports). Warning by default; added to the strict and legacy-ratchet globalconfigs.
 - Docs: QG0187 (Demeter) stays a warning; QG0022/QG0190 scope documented.
->>>>>>> origin/main
 
 ## 0.4.0
 
