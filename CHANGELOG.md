@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - Analyzers (B5): QG0130-QG0147 shape/hexagonal rules (primitive ids/money in ports, public Core types, unsealed classes, public setters, hybrid model types, leaky ports, Options without ValidateOnStart, port methods without CancellationToken, enum switch outside owning feature, value object shape, contract records, technology words, persistence attributes, technology types in ports, float money, Round without MidpointRounding, port type whitelist, command/query separation) and QG0150-QG0152 no-hardcode rules (numbers, TimeSpan.From*, URLs/hosts) with a source-only `[Invariant(InvariantKind.X)]`; `QualityGatesLayer` is compiler-visible; globalconfig enables CA1852, S109, S1075, S2360. See docs/analyzers.md.
 - Architecture: opt-in hexagonal slice rules via `HexagonalProfile.ExtraRules` (FlowDirection, NoLevelSkipping, HandlerIsolation, ResultAtBoundary, OnePortPerUseCase, FolderAllowlist, FeatureMirror, HandlerReferenced), module rule StableDependencies (warning until `EnforceStableDependencies`), helpers `ErrorConventions` (X1 single exception handler, X9 unique error codes), `EfConcurrency` (Z13), `OpenApiSnapshot` / `MessageContractSnapshot` with breaking-change diff (H7, Y7, Y8). New package KirillMaster.QualityGates.Testing.AspNetCore (host-start smoke, route coverage, single exception handler registered; Z14, X1).
@@ -8,6 +8,12 @@
 - Results: new packages `KirillMaster.QualityGates.Results` (`Result`, `Result<T>`, `Error`, `ErrorType`; netstandard2.0 and net10.0; implicit conversions, `MemberNotNullWhen`, no fluent API) and `KirillMaster.QualityGates.Results.AspNetCore` (`ToHttpResult()` ProblemDetails mapping, `ProblemExceptionHandler` base that never exposes exception details); both packed and published by the release workflow.
 - Results rules: types are matched by full name (`KirillMaster.QualityGates.Results.*`, extra via `qg_result_type_names`); QG0106 and QG0108 are errors in the strict profile, all QG0100-QG0111 are at least warnings in every profile (quality.globalconfig, quality.legacy.globalconfig).
 - Analyzers: QG0100-QG0111 (endpoint returns Result, catch in core, catch-all in adapter, manual retry, caught cancellation, catch in consumer, unused Result, literal error code, throwing Result method, Result without `MemberNotNullWhen`, exception text in ProblemDetails, fluent Result chains). `QualityGatesLayer` is now a compiler-visible property.
+- Build: every QG rule is at least a warning in every profile (legacy-ratchet no longer demotes QG0033-QG0036, QG0050, QG0051 to suggestion), so the CI new-code gate sees violations on changed lines; old code is covered by grandfathered suppressions.
+- Build: base `AnalysisLevel` is 9.0-* when MSBuild < 18 (SDK 9), 10.0-* on SDK 10 (fixes IDE0055/IDE0005 errors on SDK 9 consumers).
+- Build: `QualityGatesLayer=core` is also derived for `*.Core`, `*.Ports.Input`, `*.Ports.Output` projects.
+
+## 0.2.0
+
 - Architecture: generic module engine (`ModulesConfig`, `ModuleRules`: FeatureIsolation soft/strict, SharedPurity, SharedCap, CompositionCap, ModelIsLeaf, ModuleFanOut, OrchestrationThin) and hexagonal profile (`HexagonalProfile`, `HexagonalRules`: AdapterReferencesAdapter, AdapterDirection, RunnerHostReferences, CoreNoContainer, PortWidth, NoMirrorTypes, PortNoTechnologyTypes), both opt in on `HexagonalArchitectureTests` with a shared `RuleBaseline` JSON (new violations fail, `FailOnStaleBaseline` makes it shrink-only).
 - .NET 10 SDK, test projects and sample on net10.0; Architecture targets net8.0 and net10.0; CI uses SDK 10.
 - Build: `QualityGatesMode` (`adopt`|`refactor`, env `QUALITYGATES_MODE`) and `QualityGatesRefactorScope`; refactor skips grandfathered suppression files, forces `TreatWarningsAsErrors` and adds `quality.refactor.globalconfig` raising all `QualityGates.*` categories to error. Mode and scope are resolved in the targets (project-body values count); scope is an item list of prefixes.
