@@ -90,7 +90,7 @@ Role detection: a type's namespace segments are matched against configurable lis
 ### qg0130
 Port method parameter that is a primitive id (`string/int/long/Guid` named `id`, `*Id`, `*Ids`, `*Guid`; `qg_id_name_pattern`) or primitive money (`decimal/double/float` named `amount`, `*Price`, `*Total`...; `qg_money_name_pattern`). Collections of such primitives count. Use a value object (H1).
 ### qg0131
-Only with `QualityGatesLayer=core`: public type (outside ports and contracts) that is not reachable from a port signature (transitively through public members, base types, interfaces). DI extension classes (extension on `IServiceCollection`) and `Program` are exempt (H3).
+Only with `QualityGatesLayer=core`: public type (outside ports and contracts) that is not reachable from a port signature (transitively through public members, base types, interfaces). DI extension classes (extension on `IServiceCollection`) and `Program` are exempt Reported only when the assembly itself declares port types (ports in another assembly make cross-assembly use unknowable) (H3).
 ### qg0132
 Only with `QualityGatesLayer=core`: class that is not sealed/abstract/static, has no derived type in the compilation and no virtual/abstract/protected members. Other layers are not reported: internal types are covered by CA1852 and cross-assembly inheritance of public types is unknown (H3).
 ### qg0133

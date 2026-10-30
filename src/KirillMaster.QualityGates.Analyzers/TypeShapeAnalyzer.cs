@@ -52,10 +52,11 @@ public sealed class TypeShapeAnalyzer : QgAnalyzer
     {
         var types = AllTypes(context.Compilation.Assembly.GlobalNamespace).Where(t => !t.IsImplicitlyDeclared && t.Locations.Any(l => l.IsInSource)).ToArray();
         var reachable = PortReachable(types, roles);
+        var hasPorts = types.Any(roles.IsPort);
         var derived = types.Select(t => t.BaseType?.OriginalDefinition).Where(t => t is not null).ToImmutableHashSet<INamedTypeSymbol?>(SymbolEqualityComparer.Default);
         foreach (var type in types.Where(t => t.ContainingType is null))
         {
-            if (IsPublicCoreLeak(type, roles, reachable))
+            if (hasPorts && IsPublicCoreLeak(type, roles, reachable))
             {
                 context.ReportDiagnostic(Diagnostic.Create(ShapeDescriptors.PublicCoreType, type.Locations[0], type.Name));
             }

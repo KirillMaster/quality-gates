@@ -99,7 +99,8 @@ public sealed class ShapeTests
     [Fact]
     public async Task Public_core_type_is_reported_unless_it_is_part_of_a_port_signature()
     {
-        const string Hidden = "namespace App.Core { public class Calculator { } }";
+        const string Port = " namespace App.Ports.Output { public interface IClock { int Now(); } }";
+        const string Hidden = "namespace App.Core { public class Calculator { } }" + Port;
         const string Exposed = "namespace App.Core { public sealed class Order { } } namespace App.Ports.Output { public interface IRepo { App.Core.Order Get(); } }";
 
         var core = ("build_property.QualityGatesLayer", "core");
@@ -111,8 +112,12 @@ public sealed class ShapeTests
     }
 
     [Fact]
+    public async Task Public_core_type_is_not_reported_when_ports_live_in_another_assembly() =>
+        Assert.DoesNotContain("QG0131", await Ids("namespace App.Domain { public sealed class Order { } }", ("build_property.QualityGatesLayer", "core")));
+
+    [Fact]
     public async Task Core_layer_property_makes_every_public_type_core() =>
-        Assert.Contains("QG0131", await Ids("namespace App.Handlers { public sealed class Calculator { } }", ("build_property.QualityGatesLayer", "core")));
+        Assert.Contains("QG0131", await Ids("namespace App.Handlers { public sealed class Calculator { } } namespace App.Ports.Output { public interface IClock { int Now(); } }", ("build_property.QualityGatesLayer", "core")));
 
     [Fact]
     public async Task Unsealed_public_class_without_derived_types_is_reported()
