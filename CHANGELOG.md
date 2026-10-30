@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.1
+
+- Analyzers: fix AD0001 `IndexOutOfRangeException` in `UsageAnalyzer` (QG0143 money-as-float check) on projects with top-level statements (ASP.NET Core `Program.cs`): the synthesized entry point has a parameter (`args`) without a source location; such parameters, properties and fields are now skipped.
+
 ## 0.3.0
 
 - Analyzers (B5): QG0130-QG0147 shape/hexagonal rules (primitive ids/money in ports, public Core types, unsealed classes, public setters, hybrid model types, leaky ports, Options without ValidateOnStart, port methods without CancellationToken, enum switch outside owning feature, value object shape, contract records, technology words, persistence attributes, technology types in ports, float money, Round without MidpointRounding, port type whitelist, command/query separation) and QG0150-QG0152 no-hardcode rules (numbers, TimeSpan.From*, URLs/hosts) with a source-only `[Invariant(InvariantKind.X)]`; `QualityGatesLayer` is compiler-visible; globalconfig enables CA1852, S109, S1075, S2360. See docs/analyzers.md.
