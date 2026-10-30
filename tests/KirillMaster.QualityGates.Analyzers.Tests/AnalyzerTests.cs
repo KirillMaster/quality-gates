@@ -11,7 +11,7 @@ public sealed class AnalyzerTests
 
         Assert.All(descriptors, d => Assert.Matches("^QG0\\d{3}$", d.Id));
         Assert.All(descriptors, d => Assert.EndsWith(d.Id.ToLowerInvariant(), d.HelpLinkUri, StringComparison.Ordinal));
-        Assert.Equal(65, descriptors.Length);
+        Assert.Equal(66, descriptors.Length);
     }
 
     [Fact]

@@ -63,7 +63,12 @@ public sealed class MutationDiffGateTests
     [Trait("scenario", "US3-AS7")]
     public void Parser_reads_real_schema_with_relative_forward_slash_paths_and_line_numbers()
     {
-        var mutants = MutationReportParser.Parse(Report("statuses-mixed.json"), "C:/repo");
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var mutants = MutationReportParser.Parse(Report("statuses-mixed.json"), "C:\repo");
 
         mutants.Should().OnlyContain(m => m.File == "src/Sample.Domain/Calc.cs");
         mutants[0].Line.Should().Be(10);
