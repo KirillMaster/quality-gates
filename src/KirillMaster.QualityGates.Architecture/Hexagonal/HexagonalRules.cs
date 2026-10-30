@@ -11,6 +11,14 @@ public static class HexagonalRuleIds
     public const string PortWidth = "PortWidth";
     public const string NoMirrorTypes = "NoMirrorTypes";
     public const string PortNoTechnologyTypes = "PortNoTechnologyTypes";
+    public const string FlowDirection = "FlowDirection";
+    public const string NoLevelSkipping = "NoLevelSkipping";
+    public const string HandlerIsolation = "HandlerIsolation";
+    public const string ResultAtBoundary = "ResultAtBoundary";
+    public const string OnePortPerUseCase = "OnePortPerUseCase";
+    public const string FolderAllowlist = "FolderAllowlist";
+    public const string FeatureMirror = "FeatureMirror";
+    public const string HandlerReferenced = "HandlerReferenced";
 }
 
 /// <summary>Hexagonal profile rules; each returns every violation, the caller applies the baseline.</summary>
@@ -18,9 +26,16 @@ public static class HexagonalRules
 {
     private const string ServiceProvider = "System.IServiceProvider";
 
-    public static IReadOnlyList<RuleViolation> All(TypeGraph graph, HexagonalProfile profile) =>
-        [.. AdapterReferencesAdapter(graph, profile), .. AdapterDirection(graph, profile), .. RunnerHostReferences(graph, profile), .. CoreNoContainer(graph, profile),
-            .. PortWidth(graph, profile), .. NoMirrorTypes(graph, profile), .. PortNoTechnologyTypes(graph, profile)];
+    public static IReadOnlyList<RuleViolation> All(TypeGraph graph, HexagonalProfile profile)
+    {
+        FlowRules.EnsureKnown(profile);
+        FlowRules.EnsureRolesMatch(graph, profile);
+        return [.. AdapterReferencesAdapter(graph, profile), .. AdapterDirection(graph, profile), .. RunnerHostReferences(graph, profile), .. CoreNoContainer(graph, profile),
+            .. PortWidth(graph, profile), .. NoMirrorTypes(graph, profile), .. PortNoTechnologyTypes(graph, profile), .. FlowRules.Selected(graph, profile)];
+    }
+
+    /// <summary>Ids of the rules that run for this profile: the base rules plus <see cref="HexagonalProfile.ExtraRules"/>.</summary>
+    public static IReadOnlyList<string> ActiveRulesFor(HexagonalProfile profile) => [.. ActiveRules, .. profile.ExtraRules.Distinct(StringComparer.Ordinal)];
 
     /// <summary>Two named adapters must not reference each other; share code through a port or Core.</summary>
     public static IReadOnlyList<RuleViolation> AdapterReferencesAdapter(TypeGraph graph, HexagonalProfile profile) =>

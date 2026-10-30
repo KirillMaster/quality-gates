@@ -12,6 +12,7 @@ public static class ModuleRuleIds
     public const string ModelIsLeaf = "ModelIsLeaf";
     public const string ModuleFanOut = "ModuleFanOut";
     public const string OrchestrationThin = "OrchestrationThin";
+    public const string StableDependencies = "StableDependencies";
 }
 
 /// <summary>Generic module rules over a <see cref="TypeGraph"/>; each returns every violation, the caller applies the baseline.</summary>
@@ -20,7 +21,22 @@ public static class ModuleRules
     public static IReadOnlyList<RuleViolation> All(TypeGraph graph, ModulesConfig config)
     {
         return [.. FeatureIsolation(graph, config), .. SharedPurity(graph, config), .. SharedCap(graph, config), .. CompositionCap(graph, config),
-            .. ModelIsLeaf(graph, config), .. ModuleFanOut(graph, config), .. OrchestrationThin(graph, config)];
+            .. ModelIsLeaf(graph, config), .. ModuleFanOut(graph, config), .. OrchestrationThin(graph, config), .. config.EnforceStableDependencies ? StableDependencies(graph, config) : []];
+    }
+
+    /// <summary>Stable-dependencies principle: module A must not depend on a module B that is less stable, I(B) > I(A) + epsilon with I = Ce / (Ca + Ce). The measure is the instability gap in percent.</summary>
+    public static IReadOnlyList<RuleViolation> StableDependencies(TypeGraph graph, ModulesConfig config)
+    {
+        var edges = ModuleEdges(graph, config).Select(e => (From: e.From.Name, To: e.To.Name)).Distinct().ToArray();
+        var ce = edges.GroupBy(e => e.From, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+        var ca = edges.GroupBy(e => e.To, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.Count(), StringComparer.Ordinal);
+        int Coupling(string m) => ce.GetValueOrDefault(m) + ca.GetValueOrDefault(m);
+        double Instability(string m) => (double)ce.GetValueOrDefault(m) / Coupling(m);
+        return [.. edges.Where(e => Coupling(e.From) >= config.StableDependenciesMinCoupling && Coupling(e.To) >= config.StableDependenciesMinCoupling)
+            .Select(e => (e.From, e.To, Gap: Instability(e.To) - Instability(e.From)))
+            .Where(e => e.Gap > config.StableDependenciesEpsilon)
+            .Select(e => new RuleViolation(ModuleRuleIds.StableDependencies, $"{e.From}->{e.To}", (int)Math.Round(100 * e.Gap), $"Module {e.From} depends on less stable module {e.To}"))
+            .OrderBy(v => v.Key, StringComparer.Ordinal)];
     }
 
     /// <summary>A feature may depend only on Shared, Model and itself; never on another feature or Composition.</summary>
@@ -80,6 +96,7 @@ public static class ModuleRules
     public static IReadOnlyList<string> ActiveRules(ModulesConfig config) =>
     [
         ModuleRuleIds.FeatureIsolation, ModuleRuleIds.SharedPurity, ModuleRuleIds.ModelIsLeaf, ModuleRuleIds.ModuleFanOut, ModuleRuleIds.OrchestrationThin,
+        .. config.EnforceStableDependencies ? new[] { ModuleRuleIds.StableDependencies } : [],
         .. config.SharedMaxTypes is null ? [] : new[] { ModuleRuleIds.SharedCap },
         .. config.CompositionMaxTypes is null ? [] : new[] { ModuleRuleIds.CompositionCap },
     ];

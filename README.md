@@ -97,6 +97,45 @@ Hexagonal profile (`HexagonalProfile`, baseline `quality/hexagonal-baseline.json
 | NoMirrorTypes | Ports.Input and Ports.Output types sharing at least 90% of member name and type pairs (min 2 members) | 0.9 |
 | PortNoTechnologyTypes | IQueryable, HTTP, JSON, Stream, `System.Data`, EF, Amazon, Npgsql types in port signatures | on |
 
+#### Use-case slice rules (opt in per rule)
+
+List rule names in `HexagonalProfile.ExtraRules` (JSON: `"extraRules": ["FlowDirection", "HandlerIsolation"]`); they use the same baseline as the rules above, and unknown names throw. A handler is a non-abstract class implementing a Ports.Input interface that matches `HandlerInterfacePattern` (default `^I[A-Z]\w*Handler$`); the suffix of the class does not matter. Flow levels are Runner, Handler, Domain (other Core), Port (Ports.Input and Ports.Output) and Adapter.
+
+| Rule | Checks | Config |
+|---|---|---|
+| FlowDirection | nothing points back up the flow: Domain, ports and adapters never use a concrete handler; handlers, Domain, ports and adapters never use runners | roles |
+| NoLevelSkipping (L5) | runners never use output ports or adapters; handlers, Domain and ports never use an adapter (only through an output port) | roles |
+| HandlerIsolation | a handler uses no other handler class and no other use case's input port (its own port and decorators of it are fine) | `HandlerInterfacePattern` |
+| ResultAtBoundary | a Result is only returned: no property, field or parameter of Result type outside `ResultAllowedRoles` | `ResultTypePattern`, `ResultAllowedRoles` (Runners, Host) |
+| OnePortPerUseCase | handler port has exactly one member (`:members`), one implementation, decorators of the same port excepted (`:implementations`); a handler implements one port (`:ports`) and has no public method beyond it (`:public-methods`) | |
+| FolderAllowlist | the feature folder under `Core.Features`, `Ports.Input/Output`, `Adapters.X`, `Runners.X` is not in `ForbiddenFolders` (Services, Helpers, Utils, Common, Shared, Mappers, Dtos, Contracts, Interfaces, Internal, Infrastructure, Base, ...) and, when `Features` is set, is a registered feature or in `FolderVocabulary`; works on namespaces | `FeatureFolderPattern`, `Features`, `FolderVocabulary`, `ForbiddenFolders` |
+| FeatureMirror | every Ports.Input and Ports.Output feature has a Core feature (`Ports:X`) and every Core feature has an input port feature (`Core:X`); does nothing without Core features | `CoreFeaturePattern`, `PortFeaturePattern` |
+| HandlerReferenced (Z2) | every handler class or its port is referenced from test code; include the test assemblies in `Assemblies` | `TestPattern` |
+
+`StableDependencies` (module engine, `ModulesConfig`) reports `A->B` when I(B) > I(A) + `StableDependenciesEpsilon` (0.15) with I = Ce / (Ca + Ce); modules with fewer than `StableDependenciesMinCoupling` (4) couplings are skipped. It is a warning (written to stderr by `Modules_follow_isolation_rules`, override `ReportWarnings`) until `EnforceStableDependencies` is true; then it fails on new entries like the other rules.
+
+### Convention and contract helpers (test classes)
+
+Call these from your own tests; findings are `RuleViolation`s, so `RuleBaseline` works on them.
+
+| Helper | Gate | Checks |
+|---|---|---|
+| `ErrorConventions.SingleExceptionHandler(assemblies)` | X1 | exactly one non-abstract `IExceptionHandler` implementation in the host and composition assemblies |
+| `ErrorConventions.UniqueErrorCodes(assemblies)` | X9 | codes (string constants or the `Code` of static `Error` values) are unique across all static `*Errors` classes |
+| `EfConcurrency.MissingConcurrencyToken(dbContext.Model)` | Z13 | entities marked by `markerPattern` (default `IAggregateRoot`/`AggregateRoot` base, interface or attribute) have a property with `IsConcurrencyToken`; reflection over the model, no EF reference |
+| `OpenApiSnapshot.Assert(json, path)` | H7, Y7 | generated OpenAPI JSON equals the committed snapshot (sorted keys, `info.version` and `servers` dropped); `BreakingChanges(old, new)` lists removed paths, operations, success responses, removed or retyped schema properties, removed enum values, new required parameters or properties |
+| `MessageContractSnapshot.Assert(types, path)` | Y8 | same for JSON schemas of message types (`Discover(assembly, regex)` picks them); property names camelCase, enums as names |
+
+Test types (`TestPattern`) have no role and are only the reference source of HandlerReferenced. DI registration classes (`CompositionTypePattern`, e.g. `ServiceCollectionExtensions`) are outside the flow levels; runners may use output port DTOs (the rule covers interfaces). Selected rules whose roles match no type throw instead of passing silently. `Runner` and `Runners` segments both mean runners; Core features live under `Core.Features.X` or `Core.Internal.X`. `UniqueErrorCodes` counts only members typed `Error` (`errorTypePattern`) and string members named `*Code` (`codeMemberPattern`); an unreadable member is a violation.
+
+OpenAPI breaking changes are direction-aware (request: removed enum values, new required properties, narrowed nullability; response: added enum values, dropped required, removed properties, widened nullability; also format changes, `oneOf`/`anyOf` as sets, path-level parameters, renamed path templates). Relative snapshot paths resolve against the repository root (`QG_REPO_ROOT`, else .git or solution above the binaries). `QG_UPDATE_SNAPSHOTS` is ignored when `CI` is set.
+
+Snapshot files are never rewritten silently: a missing or different file fails and lists the breaking changes; set `QG_UPDATE_SNAPSHOTS=1` to write it, plus `QG_ALLOW_BREAKING_CHANGES=1` when the diff contains breaking changes. The OpenAPI document comes from a `WebApplicationFactory` test (class T) or the build-time generator.
+
+### Optional package KirillMaster.QualityGates.Testing.AspNetCore
+
+`HostSmoke.AssertStartsAsync<Program>(configure)` starts the host with test configuration (ValidateOnStart and DI validation run) and probes one path for non-5xx (Z14). `RouteRecorder` records the routes the tests hit (`factory.WithWebHostBuilder(b => b.ConfigureServices(recorder.Install))`) and `AssertAllRoutesHit(factory.Services, known)` fails for every route in the endpoint table that no test hit (infrastructure routes `openapi`, `swagger`, `health` ignored; `known` is the ratchet list). `HostSmoke.AssertSingleExceptionHandler(factory.Services)` checks X1 against the registered services. Targets net10.0 and requires Microsoft.AspNetCore.Mvc.Testing 10.x (the package depends on it; do not pin another major). Fallback endpoints (`MapFallback`) are not routes, and a 404 answered by a catch-all route or matching no endpoint is not a hit.
+
 #### Refactoring and baseline keys
 
 Keys name modules and types (`Bill->Fulfillment`, `Shop.Core.IFat`), so a move or rename makes the old entry stale and the same violation new. Remap the baseline in the same change: `RuleBaseline.FromFile(path).Remap(new Dictionary<string, string> { ["Old.Type"] = "New.Type" }).ToJson()` renames exact keys, keeps the measure (the larger one if two keys collapse) and leaves unmapped keys alone. Relative baseline paths need `RepositoryRoot`; without it the test throws instead of using an empty baseline. `FailOnStaleBaseline` only checks the rules the test ran, so one baseline file can be shared.
