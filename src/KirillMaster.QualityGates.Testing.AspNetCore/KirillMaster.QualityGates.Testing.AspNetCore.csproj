@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>KirillMaster.QualityGates.Testing.AspNetCore</PackageId>
+    <Description>WebApplicationFactory helpers for quality-gate tests: host-start smoke, route coverage against the endpoint table, exactly-one IExceptionHandler.</Description>
+    <PackageTags>quality;testing;aspnetcore;webapplicationfactory;smoke;quality-gates</PackageTags>
+    <IsTestProject>false</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+</Project>
