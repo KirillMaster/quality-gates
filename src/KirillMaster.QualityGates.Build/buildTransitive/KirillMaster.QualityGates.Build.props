@@ -10,7 +10,7 @@
     <Nullable Condition="'$(Nullable)' == ''">enable</Nullable>
     <EnforceCodeStyleInBuild Condition="'$(EnforceCodeStyleInBuild)' == ''">true</EnforceCodeStyleInBuild>
     <QualityGatesLayer Condition="'$(QualityGatesLayer)' == '' and ($(MSBuildProjectName.EndsWith('.Tests')) or $(MSBuildProjectName.EndsWith('.Test')))">test</QualityGatesLayer>
-    <QualityGatesLayer Condition="'$(QualityGatesLayer)' == '' and ($(MSBuildProjectName.EndsWith('.Domain')) or $(MSBuildProjectName.EndsWith('.Application')))">core</QualityGatesLayer>
+    <QualityGatesLayer Condition="'$(QualityGatesLayer)' == '' and ($(MSBuildProjectName.EndsWith('.Domain')) or $(MSBuildProjectName.EndsWith('.Application')) or $(MSBuildProjectName.EndsWith('.Core')) or $(MSBuildProjectName.EndsWith('.Ports.Input')) or $(MSBuildProjectName.EndsWith('.Ports.Output')))">core</QualityGatesLayer>
     <QualityGatesLayer Condition="'$(QualityGatesLayer)' == ''">adapter</QualityGatesLayer>
     <Deterministic Condition="'$(Deterministic)' == ''">true</Deterministic>
     <QualityGatesAnalysisBase Condition="$([MSBuild]::VersionGreaterThanOrEquals($(MSBuildVersion), 18.0.0))">10.0</QualityGatesAnalysisBase>
