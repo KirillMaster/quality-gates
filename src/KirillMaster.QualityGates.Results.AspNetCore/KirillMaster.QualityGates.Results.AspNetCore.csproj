@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <PackageId>KirillMaster.QualityGates.Results.AspNetCore</PackageId>
+    <Description>ToHttpResult ProblemDetails mapping for KirillMaster.QualityGates.Results and a base IExceptionHandler that never leaks exception details.</Description>
+    <PackageTags>result;aspnetcore;problemdetails;quality-gates</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="..\KirillMaster.QualityGates.Results\KirillMaster.QualityGates.Results.csproj" />
+  </ItemGroup>
+</Project>

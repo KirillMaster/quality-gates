@@ -6,8 +6,15 @@ Reusable quality gates for modern .NET (net8 / net10). MIT licensed.
 |---|---|
 | `KirillMaster.QualityGates.Build` | Build-only package: warnings-as-errors, `AnalysisLevel 10.0-all` (pinned), nullable, curated third-party analyzers (Sonar, Meziantou, Roslynator, VS.Threading, IDisposableAnalyzers, BannedApiAnalyzers), own Roslyn analyzers `QG0xxx`, `quality.globalconfig`, `BannedSymbols.txt`, `.editorconfig` template, grandfathered suppressions. |
 | `KirillMaster.QualityGates.Architecture` | ArchUnitNET-based test base for hexagonal layering, config-driven layers, namespace-cycle and type-cycle (baseline) checks, repository meta-tests (locked settings, central package versions, suppression ratchet, every project covered). |
+| `KirillMaster.QualityGates.Results` | Minimal `Result`, `Result<T>`, `Error`, `ErrorType` (netstandard2.0 / net10): implicit conversions, `MemberNotNullWhen`, no fluent API. Companion of the QG0100-QG0111 rules. |
+| `KirillMaster.QualityGates.Results.AspNetCore` | `ToHttpResult()` ProblemDetails mapping and a `ProblemExceptionHandler` base that never exposes exception details. |
 
 No StyleCop (Roslynator covers it). Legacy .NET Framework (net48) is not supported.
+
+### Result API caveats
+- `Result<T>` converts implicitly from `T` and from `Error`; `Result<Error>` is therefore ambiguous, do not use `Error` as `T`.
+- `ErrorType` is closed by convention: add values only together with the `ToHttpResult` mapping (the exhaustive switch fails the build on a missing member).
+- A `Result` or `Result<T>` must be used; QG0106 reports discarded and never-read results.
 
 ## Usage
 

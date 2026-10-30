@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFrameworks>netstandard2.0;net10.0</TargetFrameworks>
+    <PackageId>KirillMaster.QualityGates.Results</PackageId>
+    <Description>Minimal Result, Result of T, Error and ErrorType for early-return error handling, shaped like a future C# union. No fluent Bind/Map API by design.</Description>
+    <PackageTags>result;error-handling;quality-gates</PackageTags>
+    <NoWarn>$(NoWarn);CA1716</NoWarn>
+  </PropertyGroup>
+</Project>
