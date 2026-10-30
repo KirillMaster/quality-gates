@@ -13,8 +13,10 @@
     <QualityGatesLayer Condition="'$(QualityGatesLayer)' == '' and ($(MSBuildProjectName.EndsWith('.Domain')) or $(MSBuildProjectName.EndsWith('.Application')))">core</QualityGatesLayer>
     <QualityGatesLayer Condition="'$(QualityGatesLayer)' == ''">adapter</QualityGatesLayer>
     <Deterministic Condition="'$(Deterministic)' == ''">true</Deterministic>
-    <AnalysisLevel Condition="'$(AnalysisLevel)' == '' and '$(QualityGatesProfile)' == 'legacy-ratchet'">10.0-recommended</AnalysisLevel>
-    <AnalysisLevel Condition="'$(AnalysisLevel)' == ''">10.0-all</AnalysisLevel>
+    <QualityGatesAnalysisBase Condition="$([MSBuild]::VersionGreaterThanOrEquals($(MSBuildVersion), 18.0.0))">10.0</QualityGatesAnalysisBase>
+    <QualityGatesAnalysisBase Condition="'$(QualityGatesAnalysisBase)' == ''">9.0</QualityGatesAnalysisBase>
+    <AnalysisLevel Condition="'$(AnalysisLevel)' == '' and '$(QualityGatesProfile)' == 'legacy-ratchet'">$(QualityGatesAnalysisBase)-recommended</AnalysisLevel>
+    <AnalysisLevel Condition="'$(AnalysisLevel)' == ''">$(QualityGatesAnalysisBase)-all</AnalysisLevel>
     <QualityGatesRepoRoot Condition="'$(QualityGatesRepoRoot)' == ''">$([MSBuild]::GetDirectoryNameOfFileAbove('$(MSBuildProjectDirectory)', 'Directory.Build.props'))</QualityGatesRepoRoot>
     <QualityGatesRepoRoot Condition="'$(QualityGatesRepoRoot)' == ''">$(MSBuildProjectDirectory)</QualityGatesRepoRoot>
     <QualityGatesGrandfatheredDir Condition="'$(QualityGatesGrandfatheredDir)' == ''">$([MSBuild]::EnsureTrailingSlash('$(QualityGatesRepoRoot)'))quality/grandfathered/</QualityGatesGrandfatheredDir>
