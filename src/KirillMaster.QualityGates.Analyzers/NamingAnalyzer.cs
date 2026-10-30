@@ -41,7 +41,8 @@ public sealed class NamingAnalyzer : QgAnalyzer
 
             var tree = type.Locations[0].SourceTree!;
             var tokens = Tokens.Split(type.Name);
-            if (tokens.Length > 0 && _config.List(tree, "qg_banned_name_suffixes", Descriptors.BannedNameSuffixes).Contains(tokens[tokens.Length - 1]))
+            if (tokens.Length > 0 && _config.List(tree, "qg_banned_name_suffixes", Descriptors.BannedNameSuffixes).Contains(tokens[tokens.Length - 1])
+                && !_config.List(tree, "qg_banned_name_suffix_allowlist", string.Empty).Contains(type.Name))
             {
                 context.ReportDiagnostic(Diagnostic.Create(Descriptors.BannedNameSuffix, type.Locations[0], type.Name, tokens[tokens.Length - 1]));
             }

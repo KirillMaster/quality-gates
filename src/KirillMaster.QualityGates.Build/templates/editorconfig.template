@@ -37,6 +37,16 @@ indent_size = 2
 # qg_max_pass_through_percent = 75
 # qg_banned_name_suffixes = Helper,Helpers,Util,Utils,Utility,Utilities,Manager,Misc,Stuff,Thing,Impl,Holder,Common
 # qg_abbreviation_tokens = svc,cmd,evt,src,mgr,cfg,tmp,num,req,res,opt,str,cb
+# qg_banned_name_suffix_allowlist = OrderManager
+# qg_max_arrange_statements = 15
+# qg_test_name_pattern = ^[A-Z]\w*_\w+_\w+$
+# qg_why_comment_cognitive_threshold = 10
+# qg_core_namespace_segments = Core,Domain,Application
+# qg_composer_percent = 80
+# qg_worker_percent = 20
+# QG0174 needs a glossary: set <QualityGatesGlossary>path/to/glossary.txt</QualityGatesGlossary> (file name must be glossary.txt)
+# QualityGatesLayer=core (project property) marks Core projects for QG0184/QG0187; with no layer set, namespaces from qg_core_namespace_segments are used
+# QG0170-QG0187 (readability batch): warning by default; see docs/analyzers.md
 
 # QG0007, QG0008, QG0033-QG0036, QG0050, QG0051: warning in strict; legacy-ratchet makes QG0033-QG0036, QG0050, QG0051 suggestions
 

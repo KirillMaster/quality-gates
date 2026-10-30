@@ -6,8 +6,15 @@ Reusable quality gates for modern .NET (net8 / net10). MIT licensed.
 |---|---|
 | `KirillMaster.QualityGates.Build` | Build-only package: warnings-as-errors, `AnalysisLevel 10.0-all` (pinned), nullable, curated third-party analyzers (Sonar, Meziantou, Roslynator, VS.Threading, IDisposableAnalyzers, BannedApiAnalyzers), own Roslyn analyzers `QG0xxx`, `quality.globalconfig`, `BannedSymbols.txt`, `.editorconfig` template, grandfathered suppressions. |
 | `KirillMaster.QualityGates.Architecture` | ArchUnitNET-based test base for hexagonal layering, config-driven layers, namespace-cycle and type-cycle (baseline) checks, repository meta-tests (locked settings, central package versions, suppression ratchet, every project covered). |
+| `KirillMaster.QualityGates.Results` | Minimal `Result`, `Result<T>`, `Error`, `ErrorType` (netstandard2.0 / net10): implicit conversions, `MemberNotNullWhen`, no fluent API. Companion of the QG0100-QG0111 rules. |
+| `KirillMaster.QualityGates.Results.AspNetCore` | `ToHttpResult()` ProblemDetails mapping and a `ProblemExceptionHandler` base that never exposes exception details. |
 
 No StyleCop (Roslynator covers it). Legacy .NET Framework (net48) is not supported.
+
+### Result API caveats
+- `Result<T>` converts implicitly from `T` and from `Error`; `Result<Error>` is therefore ambiguous, do not use `Error` as `T`.
+- `ErrorType` is closed by convention: add values only together with the `ToHttpResult` mapping (the exhaustive switch fails the build on a missing member).
+- A `Result` or `Result<T>` must be used; QG0106 reports discarded and never-read results.
 
 ## Usage
 
@@ -32,8 +39,9 @@ Property names are shared with the company package so one tool can drive both; t
 | `QualityGatesMode` | `adopt` (env `QUALITYGATES_MODE` when empty) | `adopt` compiles grandfathered suppressions; `refactor` does not compile them, forces `TreatWarningsAsErrors=true` and raises every `QG*` rule to error (see Refactor mode); the mode can also be set in the project body |
 | `QualityGatesRefactorScope` | empty (all projects) | `;` list of project-name prefixes (`Shop.Orders*;Shop.Billing`, blanks and spaces ignored, trailing `*` optional); projects outside the scope stay in `adopt` |
 | `EnforceCodeStyleInBuild`, `AnalysisLevel` | `true`, pinned by profile | defaults only; values set by the consumer win. `AnalysisLevel` is never `latest` so SDK upgrades do not change the rules |
-| `QualityGatesLayer` | derived | `core` (`*.Domain`, `*.Application`), `test` (`*.Tests`, relaxed test config), `adapter` |
+| `QualityGatesLayer` | derived | `core` (`*.Domain`, `*.Application`, `*.Core`, `*.Ports.Input`, `*.Ports.Output`), `test` (`*.Tests`, relaxed test config), `adapter` |
 | `QualityGatesBannedSymbols` | `true` | `false` drops `BannedSymbols.txt` |
+| `QualityGatesGlossary` | empty | path to a word list that must be named `glossary.txt` (one word per line or comma-separated, `#` comments); it is added as an AdditionalFile and activates QG0174 (unknown word). Without it QG0174 is silent |
 | `QualityGatesGrandfatheredDir` | `<repo>/quality/grandfathered/` | folder with `<Project>.GlobalSuppressions.cs` files compiled into the project |
 
 NuGet audit is not part of the package props (restore does not see them). Set it in `Directory.Build.props`:
@@ -146,7 +154,7 @@ Set `QualityGatesProfile=legacy-ratchet`, put existing violations into `quality/
 
 1. Stops compiling `quality/grandfathered/*.GlobalSuppressions.cs`, so every grandfathered violation is an error again.
 2. Sets `TreatWarningsAsErrors=true`, even when the project sets `false`.
-3. Adds `quality.refactor.globalconfig` (`global_level = 100`), which sets all `QualityGates.*` analyzer categories (Design, Errors, Hygiene, Naming, Size, Testing) to error. This also enables the opt-in QG0031/QG0032 and overrides the legacy-ratchet suggestions for QG0033-QG0036, QG0050, QG0051. Curated third-party analyzers and `AnalysisLevel` are not changed (they already follow the profile); an `.editorconfig` entry still wins over the globalconfig.
+3. Adds `quality.refactor.globalconfig` (`global_level = 100`), which sets all `QualityGates.*` analyzer categories (Abstraction, Design, Errors, Hygiene, Naming, Size, Testing) to error. This also enables the opt-in QG0031/QG0032 and overrides the legacy-ratchet suggestions for QG0033-QG0036, QG0050, QG0051. Curated third-party analyzers and `AnalysisLevel` are not changed (they already follow the profile); an `.editorconfig` entry still wins over the globalconfig.
 
 Use `QualityGatesRefactorScope` to work on a few projects at a time; the rest keep adopt behaviour. Mode and scope are resolved in the package `.targets`, and `TreatWarningsAsErrors` is applied by the `QualityGatesResolveMode` target before compilation.
 

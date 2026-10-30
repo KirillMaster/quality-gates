@@ -14,6 +14,7 @@
     <_QualityGatesRefactor Include="$(MSBuildProjectName)" Condition="'@(_QualityGatesScope)' == '' or @(_QualityGatesScope->AnyHaveMetadataValue('Hit', 'True'))" />
   </ItemGroup>
   <ItemGroup Condition="'$(QualityGatesEnabled)' != 'false'">
+    <AdditionalFiles Condition="'$(QualityGatesGlossary)' != '' and Exists('$(QualityGatesGlossary)')" Include="$(QualityGatesGlossary)" />
     <AdditionalFiles Condition="'$(QualityGatesBannedSymbols)' != 'false'" Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
     <Compile Condition="'@(_QualityGatesRefactor)' == '' and Exists('$(QualityGatesGrandfatheredFile)')" Include="$(QualityGatesGrandfatheredFile)" Link="quality/GlobalSuppressions.Grandfathered.cs" />
     <GlobalAnalyzerConfigFiles Condition="'@(_QualityGatesRefactor)' != ''" Include="$(MSBuildThisFileDirectory)quality.refactor.globalconfig" />
