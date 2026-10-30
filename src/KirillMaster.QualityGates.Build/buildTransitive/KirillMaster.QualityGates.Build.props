@@ -21,8 +21,12 @@
     <QualityGatesRepoRoot Condition="'$(QualityGatesRepoRoot)' == ''">$(MSBuildProjectDirectory)</QualityGatesRepoRoot>
     <QualityGatesGrandfatheredDir Condition="'$(QualityGatesGrandfatheredDir)' == ''">$([MSBuild]::EnsureTrailingSlash('$(QualityGatesRepoRoot)'))quality/grandfathered/</QualityGatesGrandfatheredDir>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(QualityGatesEnabled)' != 'false' and '$(QualityGatesInvariantAttribute)' != 'false'">
+    <NoWarn>$(NoWarn);CS0436</NoWarn>
+  </PropertyGroup>
   <ItemGroup Condition="'$(QualityGatesEnabled)' != 'false'">
     <CompilerVisibleProperty Include="QualityGatesLayer" />
+    <Compile Condition="'$(QualityGatesInvariantAttribute)' != 'false' and '$(QualityGatesLayer)' != 'test' and '$(Language)' == 'C#'" Include="$(MSBuildThisFileDirectory)InvariantAttribute.cs.txt" Visible="false" />
     <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)quality.globalconfig" />
     <GlobalAnalyzerConfigFiles Condition="'$(QualityGatesProfile)' == 'legacy-ratchet'" Include="$(MSBuildThisFileDirectory)quality.legacy.globalconfig" />
     <GlobalAnalyzerConfigFiles Condition="'$(QualityGatesLayer)' == 'test'" Include="$(MSBuildThisFileDirectory)quality.tests.globalconfig" />
