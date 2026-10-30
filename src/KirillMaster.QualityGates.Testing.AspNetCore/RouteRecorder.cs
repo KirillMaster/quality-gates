@@ -9,7 +9,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace KirillMaster.QualityGates.Testing.AspNetCore;
 
 /// <summary>
-/// Z14: records which routes the tests hit and compares them with the endpoint table. Share one recorder across the test run (a class fixture or static), install it with
+/// Z14: records which routes (fallback endpoints and 404 answers of catch-all routes are not hits; requests matching no endpoint are not recorded)  the tests hit and compares them with the endpoint table. Share one recorder across the test run (a class fixture or static), install it with
 /// <c>factory.WithWebHostBuilder(b =&gt; b.ConfigureServices(recorder.Install))</c>, and call <see cref="AssertAllRoutesHit"/> in the last test or the fixture's dispose.
 /// </summary>
 public sealed class RouteRecorder
@@ -47,7 +47,7 @@ public sealed class RouteRecorder
 
     private void Record(HttpContext context)
     {
-        if (context.GetEndpoint() is RouteEndpoint endpoint)
+        if (context.GetEndpoint() is RouteEndpoint endpoint && endpoint.Order != int.MaxValue && !(context.Response.StatusCode == StatusCodes.Status404NotFound && endpoint.RoutePattern.Parameters.Any(p => p.IsCatchAll)))
         {
             _hits[HostSmoke.RouteKey(endpoint.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods, endpoint.RoutePattern.RawText ?? string.Empty)] = 0;
         }

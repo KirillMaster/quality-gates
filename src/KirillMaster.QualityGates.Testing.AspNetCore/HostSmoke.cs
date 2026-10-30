@@ -27,11 +27,12 @@ public static class HostSmoke
         }
     }
 
-    /// <summary>Routes of the endpoint table as "METHOD /pattern" (methods joined with "|", "ANY" without a method constraint), sorted.</summary>
+    /// <summary>Routes of the endpoint table (fallback endpoints, <c>MapFallback</c>, excluded) as "METHOD /pattern" (methods joined with "|", "ANY" without a method constraint), sorted.</summary>
     public static IReadOnlyList<string> Routes(IServiceProvider services)
     {
         ArgumentNullException.ThrowIfNull(services);
         return [.. services.GetServices<EndpointDataSource>().SelectMany(d => d.Endpoints).OfType<RouteEndpoint>()
+            .Where(e => e.Order != int.MaxValue)
             .Select(e => RouteKey(e.Metadata.GetMetadata<IHttpMethodMetadata>()?.HttpMethods, e.RoutePattern.RawText ?? string.Empty))
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)];
     }

@@ -154,7 +154,7 @@ namespace Shop.Core.Ports.Output.Orders { public interface IOrders { void Save()
 namespace Shop.Core.Ports.Output.Audit { public interface IAudit { void Save(); } }");
 
         Assert.Equal(["Core:Billing", "Ports:Audit"], FlowRules.FeatureMirror(graph, new HexagonalProfile()).Select(v => v.Key));
-        Assert.Empty(FlowRules.FeatureMirror(Graph("ShopMirrorNoCore", "namespace Shop.Core.Ports.Input.Orders { public interface IPlaceHandler { void Handle(); } }"), new HexagonalProfile()));
+        Assert.Empty(FlowRules.FeatureMirror(Graph("ShopMirrorNoFeatures", "namespace Shop.Core.Model { public class M { } } namespace Shop.Core.Ports.Input.Orders { public interface IPlaceHandler { void Handle(); } }"), new HexagonalProfile()));
     }
 
     [Fact]
@@ -197,6 +197,78 @@ namespace Shop.Tests { public class T { public Shop.Core.Features.Orders.AHandle
         var graph = TypeGraph.Build(ArchitectureRules.Load([assembly]), [assembly]);
         File.WriteAllText(file, RuleBaseline.From(HexagonalRules.All(graph, profile)).ToJson());
         new Probe(assembly, profile).Hexagonal_roles_follow_profile_rules();
+    }
+
+    [Fact]
+    public void Test_types_have_no_role_and_do_not_count_as_handlers_or_violations()
+    {
+        var graph = Graph("ShopTestsExcluded", @"
+namespace Shop.Core { public class Result<T> { } }
+namespace Shop.Core.Ports.Input.Orders { public interface IAHandler { void Handle(); } }
+namespace Shop.Core.Features.Orders { public class AHandler : Shop.Core.Ports.Input.Orders.IAHandler { public void Handle() { } } }
+namespace Shop.Adapters.Postgres { public class Pg { } }
+namespace Shop.Core.Tests
+{
+    public class FakeHandler : Shop.Core.Ports.Input.Orders.IAHandler { public Shop.Core.Result<int>? R { get; set; } public Shop.Adapters.Postgres.Pg? P { get; set; } public AHandlerTest? T { get; set; } public void Handle() { } public void More() { } }
+    public class AHandlerTest { public Shop.Core.Features.Orders.AHandler? H { get; set; } }
+}");
+        var profile = new HexagonalProfile();
+
+        Assert.Equal(HexRole.None, profile.RoleOf(graph.Types.Single(t => t.Name == "FakeHandler")));
+        Assert.Empty(FlowRules.OnePortPerUseCase(graph, profile));
+        Assert.Empty(FlowRules.ResultAtBoundary(graph, profile));
+        Assert.Empty(FlowRules.FlowDirection(graph, profile));
+        Assert.Empty(FlowRules.NoLevelSkipping(graph, profile));
+        Assert.Empty(FlowRules.HandlerIsolation(graph, profile));
+        Assert.Empty(FlowRules.HandlerReferenced(graph, profile));
+        Assert.DoesNotContain(HexagonalRules.All(graph, profile), v => v.Key.Contains("FakeHandler", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Di_registration_classes_are_outside_the_flow_and_output_port_dtos_are_not_level_skipping()
+    {
+        var graph = Graph("ShopComposition", @"
+namespace Shop.Core.Ports.Input.Orders { public interface IPlaceHandler { void Handle(); } }
+namespace Shop.Core.Ports.Output.Orders { public interface IOrders { void Save(); } public class OrderRow { public int Id { get; set; } } }
+namespace Shop.Core.Features.Orders { public class PlaceHandler : Shop.Core.Ports.Input.Orders.IPlaceHandler { public void Handle() { } } }
+namespace Shop.Adapters.Postgres
+{
+    public static class ServiceCollectionExtensions { public static void Add(Shop.Core.Features.Orders.PlaceHandler? h) { } }
+    public class Bad { public Shop.Core.Features.Orders.PlaceHandler? H { get; set; } }
+}
+namespace Shop.Runner.Api { public class Endpoint { public Shop.Core.Ports.Output.Orders.OrderRow? Row { get; set; } public Shop.Core.Ports.Output.Orders.IOrders? O { get; set; } } }");
+        var profile = new HexagonalProfile();
+
+        Assert.Equal(HexRole.Runners, profile.RoleOf(graph.Types.Single(t => t.Name == "Endpoint")));
+        Assert.Equal(["Shop.Adapters.Postgres.Bad->Shop.Core.Features.Orders.PlaceHandler"], FlowRules.FlowDirection(graph, profile).Select(v => v.Key));
+        Assert.Equal(["Shop.Runner.Api.Endpoint->Shop.Core.Ports.Output.Orders.IOrders"], FlowRules.NoLevelSkipping(graph, profile).Select(v => v.Key));
+    }
+
+    [Fact]
+    public void Core_internal_features_mirror_ports_and_unmatched_roles_fail_loudly()
+    {
+        var graph = Graph("ShopInternalMirror", @"
+namespace Shop.Core.Internal.Orders { public class A { } }
+namespace Shop.Core.Ports.Input.Orders { public interface IPlaceHandler { void Handle(); } }
+namespace Shop.Core.Ports.Output.Audit { public interface IAudit { void Save(); } }");
+
+        Assert.Equal(["Ports:Audit"], FlowRules.FeatureMirror(graph, new HexagonalProfile()).Select(v => v.Key));
+        Assert.Empty(FlowRules.FolderAllowlist(graph, new HexagonalProfile()));
+        var ex = Assert.Throws<InvalidOperationException>(() => HexagonalRules.All(graph, new HexagonalProfile { CorePattern = "^Nothing$", ExtraRules = [HexagonalRuleIds.FeatureMirror] }));
+        Assert.Contains("FeatureMirror needs a Core type", ex.Message, StringComparison.Ordinal);
+        var noTests = Assert.Throws<InvalidOperationException>(() => HexagonalRules.All(graph, new HexagonalProfile { ExtraRules = [HexagonalRuleIds.HandlerReferenced] }));
+        Assert.Contains("needs test types", noTests.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Result_violations_are_keyed_by_signature_and_deduplicated()
+    {
+        var found = FlowRules.ResultAtBoundary(Graph("ShopResultKeys", @"
+namespace Shop.Core { public class Result<T> { } public class Policy { public void M(Result<int> a, Result<int> b) { } public void M(Result<int> a) { } public Result<int> Ok() => new Result<int>(); } }"), new HexagonalProfile());
+
+        Assert.Equal(3, found.Count);
+        Assert.Equal(3, found.Select(v => v.Key).Distinct(StringComparer.Ordinal).Count());
+        Assert.All(found, v => Assert.StartsWith("Shop.Core.Policy.M(", v.Key, StringComparison.Ordinal));
     }
 
     private sealed class Probe(Assembly assembly, HexagonalProfile profile) : HexagonalArchitectureTests

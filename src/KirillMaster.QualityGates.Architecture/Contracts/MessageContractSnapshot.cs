@@ -20,7 +20,7 @@ public static class MessageContractSnapshot
     {
         ArgumentNullException.ThrowIfNull(assembly);
         var regex = new Regex(namePattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
-        return [.. assembly.GetExportedTypes().Where(t => t is { IsAbstract: false, IsInterface: false, IsEnum: false } && !typeof(Delegate).IsAssignableFrom(t) && regex.IsMatch(t.FullName ?? t.Name))
+        return [.. assembly.GetExportedTypes().Where(t => t is { IsAbstract: false, IsInterface: false, IsEnum: false, IsGenericTypeDefinition: false } && !typeof(Delegate).IsAssignableFrom(t) && regex.IsMatch(t.FullName ?? t.Name))
             .OrderBy(t => t.FullName, StringComparer.Ordinal)];
     }
 
@@ -28,9 +28,9 @@ public static class MessageContractSnapshot
     public static string Build(IEnumerable<Type> contracts)
     {
         var root = new JsonObject();
-        foreach (var type in contracts.OrderBy(t => t.FullName, StringComparer.Ordinal))
+        foreach (var type in contracts.OrderBy(NameOf, StringComparer.Ordinal))
         {
-            root[type.FullName ?? type.Name] = SchemaOf(type, []);
+            root[NameOf(type)] = SchemaOf(type, []);
         }
 
         return SnapshotStore.Normalize(new JsonObject { ["contracts"] = root }.ToJsonString());
@@ -58,6 +58,19 @@ public static class MessageContractSnapshot
         }
 
         return found;
+    }
+
+    /// <summary>Stable contract name: the full name, with closed generics as <c>Ns.Envelope&lt;Ns.Payload&gt;</c> instead of the assembly-qualified runtime name.</summary>
+    public static string NameOf(Type type)
+    {
+        ArgumentNullException.ThrowIfNull(type);
+        if (!type.IsGenericType)
+        {
+            return type.FullName ?? type.Name;
+        }
+
+        var definition = type.GetGenericTypeDefinition().FullName ?? type.Name;
+        return $"{Regex.Replace(definition, @"`\d+", string.Empty, RegexOptions.None, TimeSpan.FromSeconds(1))}<{string.Join(',', type.GetGenericArguments().Select(NameOf))}>";
     }
 
     private static JsonObject SchemaOf(Type type, HashSet<Type> path)
@@ -96,7 +109,7 @@ public static class MessageContractSnapshot
 
         if (!path.Add(type))
         {
-            return new JsonObject { ["$ref"] = "#/contracts/" + type.FullName };
+            return new JsonObject { ["$ref"] = "#/contracts/" + NameOf(type) };
         }
 
         var properties = new JsonObject();

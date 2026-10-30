@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace KirillMaster.QualityGates.Architecture.Contracts;
 
@@ -26,10 +27,10 @@ public static class OpenApiSnapshot
         var old = JsonNode.Parse(oldJson) as JsonObject ?? [];
         var current = JsonNode.Parse(newJson) as JsonObject ?? [];
         var found = new List<string>();
-        var newPaths = current["paths"] as JsonObject ?? [];
+        var newPaths = (current["paths"] as JsonObject ?? []).GroupBy(p => Template(p.Key), StringComparer.Ordinal).ToDictionary(g => g.Key, g => (Route: g.Last().Key, Item: g.Last().Value), StringComparer.Ordinal);
         foreach (var (route, oldItem) in old["paths"] as JsonObject ?? [])
         {
-            if (!newPaths.TryGetPropertyValue(route, out var newItem) || newItem is not JsonObject item)
+            if (!newPaths.TryGetValue(Template(route), out var target) || target.Item is not JsonObject item)
             {
                 found.Add($"path {route} removed");
                 continue;
@@ -40,7 +41,7 @@ public static class OpenApiSnapshot
                 var label = $"{method.ToUpperInvariant()} {route}";
                 if (item[method] is JsonObject operation)
                 {
-                    CompareOperation(label, (JsonObject)oldItem![method]!, operation, found);
+                    CompareOperation(label, route, target.Route, oldItem as JsonObject ?? [], (JsonObject)oldItem![method]!, item, operation, found);
                 }
                 else
                 {
@@ -58,10 +59,13 @@ public static class OpenApiSnapshot
         return found;
     }
 
-    private static void CompareOperation(string label, JsonObject old, JsonObject current, List<string> found)
+    /// <summary>Route with parameter names erased, so renaming <c>{id}</c> to <c>{orderId}</c> keeps the same path.</summary>
+    private static string Template(string route) => Regex.Replace(route, @"\{[^}]*\}", "{}", RegexOptions.None, TimeSpan.FromSeconds(1));
+
+    private static void CompareOperation(string label, string route, string newRoute, JsonObject oldItem, JsonObject old, JsonObject newItem, JsonObject current, List<string> found)
     {
-        var oldParameters = Parameters(old);
-        foreach (var (key, parameter) in Parameters(current))
+        var oldParameters = Parameters(oldItem, old, route);
+        foreach (var (key, parameter) in Parameters(newItem, current, newRoute))
         {
             var required = parameter["required"]?.GetValue<bool>() ?? false;
             if (!oldParameters.TryGetValue(key, out var before))
@@ -78,7 +82,7 @@ public static class OpenApiSnapshot
                     found.Add($"{label} parameter {key} became required");
                 }
 
-                SchemaDiff.Compare($"{label} parameter {key}", before["schema"], parameter["schema"], found);
+                SchemaDiff.Compare($"{label} parameter {key}", before["schema"], parameter["schema"], found, ContractDirection.Request);
             }
         }
 
@@ -87,7 +91,7 @@ public static class OpenApiSnapshot
             found.Add($"{label} request body became required");
         }
 
-        CompareContent($"{label} request", old["requestBody"]?["content"], current["requestBody"]?["content"], found);
+        CompareContent($"{label} request", old["requestBody"]?["content"], current["requestBody"]?["content"], found, ContractDirection.Request);
         var newResponses = current["responses"] as JsonObject ?? [];
         foreach (var (code, response) in old["responses"] as JsonObject ?? [])
         {
@@ -101,17 +105,17 @@ public static class OpenApiSnapshot
                 continue;
             }
 
-            CompareContent($"{label} response {code}", response?["content"], now?["content"], found);
+            CompareContent($"{label} response {code}", response?["content"], now?["content"], found, ContractDirection.Response);
         }
     }
 
-    private static void CompareContent(string label, JsonNode? old, JsonNode? current, List<string> found)
+    private static void CompareContent(string label, JsonNode? old, JsonNode? current, List<string> found, ContractDirection direction)
     {
         foreach (var (media, body) in old as JsonObject ?? [])
         {
             if (current is JsonObject now && now.TryGetPropertyValue(media, out var next))
             {
-                SchemaDiff.Compare($"{label} {media}", body?["schema"], next?["schema"], found);
+                SchemaDiff.Compare($"{label} {media}", body?["schema"], next?["schema"], found, direction);
             }
             else
             {
@@ -120,8 +124,14 @@ public static class OpenApiSnapshot
         }
     }
 
-    private static Dictionary<string, JsonObject> Parameters(JsonObject operation) =>
-        (operation["parameters"] as JsonArray ?? []).OfType<JsonObject>()
-        .GroupBy(p => p["$ref"]?.GetValue<string>() ?? $"{p["in"]}:{p["name"]}", StringComparer.Ordinal)
-        .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+    /// <summary>Parameters of the operation plus those declared on the path item (an operation-level one wins); path parameters are keyed by their position in the route.</summary>
+    private static Dictionary<string, JsonObject> Parameters(JsonObject pathItem, JsonObject operation, string route)
+    {
+        var names = Regex.Matches(route, @"\{([^}]*)\}", RegexOptions.None, TimeSpan.FromSeconds(1)).Select(m => m.Groups[1].Value).ToList();
+        string Key(JsonObject p) =>
+            p["$ref"]?.GetValue<string>() ?? (p["in"]?.GetValue<string>() == "path" && names.IndexOf(p["name"]?.GetValue<string>() ?? string.Empty) is var index and >= 0 ? $"path:#{index}" : $"{p["in"]}:{p["name"]}");
+        return (pathItem["parameters"] as JsonArray ?? []).Concat(operation["parameters"] as JsonArray ?? []).OfType<JsonObject>()
+            .GroupBy(Key, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.Last(), StringComparer.Ordinal);
+    }
 }

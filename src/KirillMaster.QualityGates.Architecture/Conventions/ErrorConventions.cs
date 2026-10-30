@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace KirillMaster.QualityGates.Architecture.Conventions;
 
@@ -24,39 +25,53 @@ public static class ErrorConventions
             : [new RuleViolation(ConventionRuleIds.SingleExceptionHandler, "exception-handlers", handlers.Length, $"Expected exactly one {handlerInterface} implementation, found {handlers.Length}: {string.Join(", ", handlers)}")];
     }
 
-    /// <summary>X9: error codes are unique across all static classes whose name ends with <paramref name="catalogSuffix"/>. A code is the value of a public static string field or property, or the string <c>Code</c> property of a public static field or property value (an Error). The key is the code, the measure the number of declarations.</summary>
-    public static IReadOnlyList<RuleViolation> UniqueErrorCodes(IEnumerable<Assembly> assemblies, string catalogSuffix = "Errors")
+    /// <summary>
+    /// X9: error codes are unique across all static classes whose name ends with <paramref name="catalogSuffix"/>. Only two kinds of member count: a member whose declared type is named like
+    /// <paramref name="errorTypePattern"/> (default <c>Error</c>; its string <c>Code</c> property is the code) and a string member whose name matches <paramref name="codeMemberPattern"/> (default <c>Code$</c>).
+    /// The key is the code, the measure the number of declarations; a member that cannot be read is a violation keyed by the member.
+    /// </summary>
+    public static IReadOnlyList<RuleViolation> UniqueErrorCodes(IEnumerable<Assembly> assemblies, string catalogSuffix = "Errors", string errorTypePattern = @"^Error(`\d+)?$", string codeMemberPattern = "Code$")
     {
-        var codes = assemblies.SelectMany(LoadableTypes).Where(t => t is { IsAbstract: true, IsSealed: true } && t.Name.EndsWith(catalogSuffix, StringComparison.Ordinal))
-            .SelectMany(t => CodesOf(t).Select(code => (Code: code, Owner: t.FullName + "." + code.Member)))
-            .Where(c => c.Code.Value is { Length: > 0 })
-            .GroupBy(c => c.Code.Value!, StringComparer.Ordinal)
-            .Where(g => g.Count() > 1);
-        return [.. codes.Select(g => new RuleViolation(ConventionRuleIds.UniqueErrorCodes, g.Key, g.Count(), $"Error code {g.Key} is declared {g.Count()} times: {string.Join(", ", g.Select(c => c.Owner).Order(StringComparer.Ordinal))}"))
-            .OrderBy(v => v.Key, StringComparer.Ordinal)];
+        var errorType = new Regex(errorTypePattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        var codeMember = new Regex(codeMemberPattern, RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+        var members = assemblies.SelectMany(LoadableTypes).Where(t => t is { IsAbstract: true, IsSealed: true } && t.Name.EndsWith(catalogSuffix, StringComparison.Ordinal))
+            .SelectMany(t => CodesOf(t, errorType, codeMember)).ToArray();
+        var unreadable = members.Where(m => m.Failure is not null)
+            .Select(m => new RuleViolation(ConventionRuleIds.UniqueErrorCodes, m.Owner, 1, $"Error code of {m.Owner} cannot be read: {m.Failure}"));
+        var duplicates = members.Where(m => m.Failure is null && m.Value is { Length: > 0 }).GroupBy(m => m.Value!, StringComparer.Ordinal).Where(g => g.Count() > 1)
+            .Select(g => new RuleViolation(ConventionRuleIds.UniqueErrorCodes, g.Key, g.Count(), $"Error code {g.Key} is declared {g.Count()} times: {string.Join(", ", g.Select(c => c.Owner).Order(StringComparer.Ordinal))}"));
+        return [.. duplicates.Concat(unreadable).OrderBy(v => v.Key, StringComparer.Ordinal)];
     }
 
-    private static IEnumerable<(string Member, string? Value)> CodesOf(Type type)
+    private static IEnumerable<(string Owner, string? Value, string? Failure)> CodesOf(Type type, Regex errorType, Regex codeMember)
     {
         const BindingFlags flags = BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        foreach (var field in type.GetFields(flags))
+        var candidates = type.GetFields(flags).Select(f => (f.Name, f.FieldType, Read: (Func<object?>)(() => f.GetValue(null))))
+            .Concat(type.GetProperties(flags).Where(p => p.GetIndexParameters().Length == 0 && p.GetMethod is not null).Select(p => (p.Name, p.PropertyType, Read: (Func<object?>)(() => p.GetValue(null)))));
+        foreach (var (name, memberType, read) in candidates)
         {
-            yield return (field.Name, CodeOf(field.GetValue(null)));
-        }
+            var isError = errorType.IsMatch(memberType.Name);
+            if (!isError && !(memberType == typeof(string) && codeMember.IsMatch(name)))
+            {
+                continue;
+            }
 
-        foreach (var property in type.GetProperties(flags).Where(p => p.GetIndexParameters().Length == 0 && p.GetMethod is not null))
-        {
-            yield return (property.Name, CodeOf(property.GetValue(null)));
+            var owner = type.FullName + "." + name;
+            string? code = null;
+            string? failure = null;
+            try
+            {
+                var value = read();
+                code = value as string ?? value?.GetType().GetProperty("Code", BindingFlags.Public | BindingFlags.Instance)?.GetValue(value) as string;
+            }
+            catch (Exception ex) when (ex is TargetInvocationException or TypeInitializationException)
+            {
+                failure = (ex.InnerException ?? ex).Message;
+            }
+
+            yield return (owner, code, failure);
         }
     }
-
-    private static string? CodeOf(object? value) =>
-        value switch
-        {
-            null => null,
-            string text => text,
-            _ => value.GetType().GetProperty("Code", BindingFlags.Public | BindingFlags.Instance)?.GetValue(value) as string,
-        };
 
     private static IEnumerable<Type> LoadableTypes(Assembly assembly)
     {

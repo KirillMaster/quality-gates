@@ -9,6 +9,7 @@ app.MapGet("/", () => "ok");
 app.MapGet("/orders/{id}", (string id) => id);
 app.MapPost("/orders", () => Results.Created("/orders/1", null));
 app.MapGet("/health", () => "up");
+app.MapFallback("/api/{**rest}", () => Results.NotFound());
 app.MapGet("/boom", () => Results.StatusCode(500));
 app.Run();
 

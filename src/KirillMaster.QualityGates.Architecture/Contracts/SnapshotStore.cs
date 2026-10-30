@@ -5,7 +5,7 @@ namespace KirillMaster.QualityGates.Architecture.Contracts;
 
 /// <summary>
 /// Committed snapshot files for generated contracts (OpenAPI, message schemas). A test compares the generated text with the file: a missing or different file fails, with the breaking changes listed.
-/// Set <c>QG_UPDATE_SNAPSHOTS=1</c> to write the file; an update that contains breaking changes also needs <c>QG_ALLOW_BREAKING_CHANGES=1</c>.
+/// Set <c>QG_UPDATE_SNAPSHOTS=1</c> to write the file (ignored when <c>CI</c> is set: CI fails instead); an update that contains breaking changes also needs <c>QG_ALLOW_BREAKING_CHANGES=1</c>.
 /// </summary>
 public static class SnapshotStore
 {
@@ -19,6 +19,7 @@ public static class SnapshotStore
     public static void Assert(string actual, string path, Func<string, string, IReadOnlyList<string>> breaking, bool? update = null, bool? allowBreaking = null)
     {
         ArgumentNullException.ThrowIfNull(breaking);
+        path = Resolve(path);
         var exists = File.Exists(path);
         var expected = exists ? File.ReadAllText(path) : null;
         if (expected is not null && Same(expected, actual))
@@ -27,7 +28,8 @@ public static class SnapshotStore
         }
 
         var changes = expected is null ? [] : breaking(expected, actual);
-        if ((update ?? IsSet(UpdateVariable)) && (changes.Count == 0 || (allowBreaking ?? IsSet(AllowBreakingVariable))))
+        var ci = IsSet("CI");
+        if ((update ?? (IsSet(UpdateVariable) && !ci)) && (changes.Count == 0 || (allowBreaking ?? IsSet(AllowBreakingVariable))))
         {
             Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(path))!);
             File.WriteAllText(path, actual);
@@ -36,8 +38,11 @@ public static class SnapshotStore
 
         var reason = expected is null ? "Snapshot " + path + " is missing" : "Snapshot " + path + " differs from the generated contract";
         var detail = changes.Count > 0 ? " Breaking changes (also set " + AllowBreakingVariable + "=1 to accept): " + string.Join("; ", changes) + "." : string.Empty;
-        throw new InvalidOperationException($"{reason}. Review the change and run with {UpdateVariable}=1 to update it.{detail}");
+        throw new InvalidOperationException($"{reason}. Review the change and run with {UpdateVariable}=1 to update it{(ci && IsSet(UpdateVariable) ? " (ignored on CI, run it locally)" : string.Empty)}.{detail}");
     }
+
+    /// <summary>Relative snapshot paths resolve against the repository root (<see cref="RepositoryRules.FindRepositoryRoot"/>: <c>QG_REPO_ROOT</c>, else the nearest folder with .git or a solution file above the test binaries), never against the working directory.</summary>
+    public static string Resolve(string path) => Path.IsPathRooted(path) ? path : Path.GetFullPath(Path.Combine(RepositoryRules.FindRepositoryRoot(), path));
 
     /// <summary>Canonical JSON: object keys sorted ordinally, indented, LF line endings, with <paramref name="drop"/> JSON paths ("info.version") removed.</summary>
     public static string Normalize(string json, params string[] drop)

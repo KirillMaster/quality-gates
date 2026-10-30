@@ -26,16 +26,20 @@ public sealed class ConventionTests
 namespace App
 {
     public sealed record Error(string Code);
-    public static class OrderErrors { public const string NotFound = ""order.not_found""; public static readonly Error Gone = new(""order.gone""); }
+    public static class OrderErrors { public const string NotFoundCode = ""order.not_found""; public const string Label = ""order.gone""; public static readonly Error Gone = new(""order.gone""); }
     public static class BillErrors { public static Error Dup => new(""order.gone""); public const string Ok = ""bill.ok""; }
+    public static class BoomErrors { public static Error Bad => throw new System.InvalidOperationException(""boom""); }
     public static class Unrelated { public const string Same = ""order.gone""; }
 }");
 
         var found = ErrorConventions.UniqueErrorCodes([assembly]);
 
-        Assert.Equal([("order.gone", 2)], found.Select(v => (v.Key, v.Measure)));
-        Assert.Contains("OrderErrors.Gone", found[0].Message, StringComparison.Ordinal);
-        Assert.Contains("BillErrors.Dup", found[0].Message, StringComparison.Ordinal);
+        Assert.Equal([("App.BoomErrors.Bad", 1), ("order.gone", 2)], found.Select(v => (v.Key, v.Measure)));
+        var duplicate = found.Single(v => v.Key == "order.gone");
+        Assert.Contains("OrderErrors.Gone", duplicate.Message, StringComparison.Ordinal);
+        Assert.Contains("BillErrors.Dup", duplicate.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Label", duplicate.Message, StringComparison.Ordinal);
+        Assert.Contains("boom", found.Single(v => v.Key == "App.BoomErrors.Bad").Message, StringComparison.Ordinal);
     }
 
     [Fact]

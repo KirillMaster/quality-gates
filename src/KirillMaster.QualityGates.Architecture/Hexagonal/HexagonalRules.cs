@@ -29,6 +29,7 @@ public static class HexagonalRules
     public static IReadOnlyList<RuleViolation> All(TypeGraph graph, HexagonalProfile profile)
     {
         FlowRules.EnsureKnown(profile);
+        FlowRules.EnsureRolesMatch(graph, profile);
         return [.. AdapterReferencesAdapter(graph, profile), .. AdapterDirection(graph, profile), .. RunnerHostReferences(graph, profile), .. CoreNoContainer(graph, profile),
             .. PortWidth(graph, profile), .. NoMirrorTypes(graph, profile), .. PortNoTechnologyTypes(graph, profile), .. FlowRules.Selected(graph, profile)];
     }

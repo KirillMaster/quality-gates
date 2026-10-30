@@ -44,6 +44,9 @@ public sealed class HostSmokeTests
         using var client = factory.CreateClient();
         (await client.GetAsync(new Uri("/orders/7", UriKind.Relative))).EnsureSuccessStatusCode();
 
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, (await client.GetAsync(new Uri("/api/unknown", UriKind.Relative))).StatusCode);
+        Assert.Equal(System.Net.HttpStatusCode.NotFound, (await client.GetAsync(new Uri("/nowhere/at/all", UriKind.Relative))).StatusCode);
+
         Assert.Equal(["GET /orders/{id}"], recorder.Hits);
         Assert.Equal(["GET /", "GET /boom", "POST /orders"], recorder.Uncovered(factory.Services));
         Assert.Throws<InvalidOperationException>(() => recorder.AssertAllRoutesHit(factory.Services));

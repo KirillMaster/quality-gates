@@ -30,7 +30,7 @@ public sealed class HexagonalProfile
 
     public string AdaptersPattern { get; set; } = @"(^|\.)Adapters(\.|$)";
 
-    public string RunnersPattern { get; set; } = @"(^|\.)Runners(\.|$)";
+    public string RunnersPattern { get; set; } = @"(^|\.)Runners?(\.|$)";
 
     /// <summary>Composition root: may reference every role.</summary>
     public string HostPattern { get; set; } = @"(^|\.)Host(\.|$)";
@@ -82,10 +82,13 @@ public sealed class HexagonalProfile
     public string TestPattern { get; set; } = @"(^|\.)(Unit|Integration)?Tests?(\.|$)";
 
     /// <summary>Group 1 names the feature folder in the namespace of a type of Core, ports, adapters or runners (FolderAllowlist).</summary>
-    public string FeatureFolderPattern { get; set; } = @"(?:^|\.)(?:Core\.Features|Ports\.(?:Input|Output)|Adapters\.[^.]+|Runners\.[^.]+)\.([^.]+)";
+    public string FeatureFolderPattern { get; set; } = @"(?:^|\.)(?:Core\.(?:Features|Internal)|Ports\.(?:Input|Output)|Adapters\.[^.]+|Runners?\.[^.]+)\.([^.]+)";
 
-    /// <summary>Group 1 names the feature in a Core namespace (FeatureMirror); no Core feature means the rule does nothing.</summary>
-    public string CoreFeaturePattern { get; set; } = @"(?:^|\.)Core\.Features\.([^.]+)";
+    /// <summary>Simple type names of DI registration or composition classes; they wire handlers and adapters together and are outside the flow levels.</summary>
+    public string CompositionTypePattern { get; set; } = @"(ServiceCollection\w*Extensions|ServiceRegistration\w*|DependencyInjection\w*|CompositionRoot\w*)$";
+
+    /// <summary>Group 1 names the feature in a Core namespace (FeatureMirror), by default <c>Core.Features.X</c> or <c>Core.Internal.X</c>; no Core feature means the rule does nothing.</summary>
+    public string CoreFeaturePattern { get; set; } = @"(?:^|\.)Core\.(?:Features|Internal)\.([^.]+)";
 
     /// <summary>Group 1 names the feature in a Ports.Input or Ports.Output namespace (FeatureMirror).</summary>
     public string PortFeaturePattern { get; set; } = @"(?:^|\.)Ports\.(?:Input|Output)\.([^.]+)";
@@ -110,11 +113,16 @@ public sealed class HexagonalProfile
 
     private readonly ConcurrentDictionary<IType, HexRole> _roles = new();
 
-    /// <summary>Role of a type (memoized per type, so set the patterns before the first rule runs): namespace patterns win over assembly-name patterns; within one source the order is Host, Runners, ports, Adapters, Core.</summary>
+    /// <summary>Role of a type (memoized per type, so set the patterns before the first rule runs); test types (<see cref="TestPattern"/>) have no role: namespace patterns win over assembly-name patterns; within one source the order is Host, Runners, ports, Adapters, Core.</summary>
     public HexRole RoleOf(IType type) => _roles.GetOrAdd(type, Resolve);
 
     private HexRole Resolve(IType type)
     {
+        if (TypeGraph.Matches(TestPattern, type))
+        {
+            return HexRole.None;
+        }
+
         var patterns = new (HexRole Role, string Pattern)[]
         {
             (HexRole.Host, HostPattern), (HexRole.Runners, RunnersPattern), (HexRole.PortsInput, PortsInputPattern),

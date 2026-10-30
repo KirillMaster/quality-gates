@@ -31,7 +31,7 @@ public static class FlowRules
     {
         var handlers = HandlerNames(graph, profile);
         return [.. graph.Edges.Select(e => (e.From, e.To, FromLevel: LevelOf(e.From, profile, handlers), ToLevel: LevelOf(e.To, profile, handlers)))
-            .Where(e => (e.FromLevel == Level.Runner && (e.ToLevel == Level.Adapter || profile.RoleOf(e.To) == HexRole.PortsOutput))
+            .Where(e => (e.FromLevel == Level.Runner && (e.ToLevel == Level.Adapter || (e.To is Interface && profile.RoleOf(e.To) == HexRole.PortsOutput)))
                 || (e.FromLevel is Level.Handler or Level.Domain or Level.Port && e.ToLevel == Level.Adapter))
             .Select(e => new RuleViolation(HexagonalRuleIds.NoLevelSkipping, $"{e.From.FullName}->{e.To.FullName}", 1, $"{e.FromLevel} type {e.From.FullName} skips a level to reach {e.ToLevel} type {e.To.FullName}"))
             .OrderBy(v => v.Key, StringComparer.Ordinal)];
@@ -52,9 +52,10 @@ public static class FlowRules
     public static IReadOnlyList<RuleViolation> ResultAtBoundary(TypeGraph graph, HexagonalProfile profile)
     {
         var result = TypeGraph.Compile(profile.ResultTypePattern);
-        return [.. graph.Types.Where(t => !profile.ResultAllowedRoles.Contains(profile.RoleOf(t)))
-            .SelectMany(t => HeldTypes(t).Where(h => result.IsMatch(h.Type.FullName)).Select(h => (Type: t, h.Member))
-                .Select(h => new RuleViolation(HexagonalRuleIds.ResultAtBoundary, $"{h.Type.FullName}.{h.Member}", 1, $"{h.Type.FullName}.{h.Member} stores or takes a Result; return it instead")))
+        return [.. graph.Types.Where(t => !IsTest(t, profile) && !profile.ResultAllowedRoles.Contains(profile.RoleOf(t)))
+            .SelectMany(t => HeldTypes(t).Where(h => result.IsMatch(h.Type.FullName)).Select(h => $"{t.FullName}.{h.Member}"))
+            .GroupBy(key => key, StringComparer.Ordinal)
+            .Select(g => new RuleViolation(HexagonalRuleIds.ResultAtBoundary, g.Key, g.Count(), $"{g.Key} stores or takes a Result; return it instead"))
             .OrderBy(v => v.Key, StringComparer.Ordinal)];
     }
 
@@ -63,7 +64,7 @@ public static class FlowRules
     {
         var ports = HandlerPorts(graph, profile).ToArray();
         var portNames = ports.Select(p => p.FullName).ToHashSet(StringComparer.Ordinal);
-        var handlers = graph.Types.Where(t => IsHandlerClass(t, portNames)).ToArray();
+        var handlers = graph.Types.Where(t => IsHandlerClass(t, portNames, profile)).ToArray();
         var found = new List<RuleViolation>();
         foreach (var port in ports)
         {
@@ -136,9 +137,9 @@ public static class FlowRules
     public static IReadOnlyList<RuleViolation> HandlerReferenced(TypeGraph graph, HexagonalProfile profile)
     {
         var portNames = HandlerPorts(graph, profile).Select(p => p.FullName).ToHashSet(StringComparer.Ordinal);
-        var tests = graph.Types.Where(t => TypeGraph.Matches(profile.TestPattern, t)).ToHashSet();
+        var tests = graph.Types.Where(t => IsTest(t, profile)).ToHashSet();
         var referenced = tests.SelectMany(graph.DependenciesOf).Select(t => t.FullName).ToHashSet(StringComparer.Ordinal);
-        return [.. graph.Types.Where(t => !tests.Contains(t) && IsHandlerClass(t, portNames))
+        return [.. graph.Types.Where(t => IsHandlerClass(t, portNames, profile))
             .Where(t => !referenced.Contains(t.FullName) && !OwnPorts(t, portNames).Any(referenced.Contains))
             .Select(t => new RuleViolation(HexagonalRuleIds.HandlerReferenced, t.FullName, 1, $"Handler {t.FullName} is not referenced by any test"))
             .OrderBy(v => v.Key, StringComparer.Ordinal)];
@@ -159,10 +160,12 @@ public static class FlowRules
     private static HashSet<string> HandlerNames(TypeGraph graph, HexagonalProfile profile)
     {
         var ports = HandlerPorts(graph, profile).Select(p => p.FullName).ToHashSet(StringComparer.Ordinal);
-        return [.. graph.Types.Where(t => IsHandlerClass(t, ports)).Select(t => t.FullName)];
+        return [.. graph.Types.Where(t => IsHandlerClass(t, ports, profile)).Select(t => t.FullName)];
     }
 
-    private static bool IsHandlerClass(IType type, HashSet<string> ports) => type is Class { IsAbstract: false } && OwnPorts(type, ports).Any();
+    private static bool IsHandlerClass(IType type, HashSet<string> ports, HexagonalProfile profile) => type is Class { IsAbstract: false } && !IsTest(type, profile) && OwnPorts(type, ports).Any();
+
+    private static bool IsTest(IType type, HexagonalProfile profile) => TypeGraph.Matches(profile.TestPattern, type);
 
     private static IEnumerable<string> OwnPorts(IType type, HashSet<string> ports) => type.ImplementedInterfaces.Select(i => i.FullName).Where(ports.Contains);
 
@@ -173,12 +176,12 @@ public static class FlowRules
         {
             PropertyMember p => [(p.Name, p.Type)],
             FieldMember f => [(f.Name, f.Type)],
-            MethodMember { MethodForm: MethodForm.Normal or MethodForm.Constructor } method => method.Parameters.Select(p => (method.Name, p)),
+            MethodMember { MethodForm: MethodForm.Normal or MethodForm.Constructor } method => method.Parameters.Select((p, i) => ($"{method.Name}({string.Join(',', method.Parameters.Select(x => x.FullName))})#{i}", p)),
             _ => [],
         });
 
     private static Level LevelOf(IType type, HexagonalProfile profile, HashSet<string> handlers) =>
-        handlers.Contains(type.FullName) ? Level.Handler : profile.RoleOf(type) switch
+        TypeGraph.Compile(profile.CompositionTypePattern).IsMatch(type.Name) ? Level.None : handlers.Contains(type.FullName) ? Level.Handler : profile.RoleOf(type) switch
         {
             HexRole.Runners => Level.Runner,
             HexRole.Core => Level.Domain,
@@ -202,6 +205,29 @@ public static class FlowRules
 
         return found;
     }
+
+    /// <summary>A selected rule whose roles match no type is a config error (wrong patterns), not a silent pass.</summary>
+    internal static void EnsureRolesMatch(TypeGraph graph, HexagonalProfile profile)
+    {
+        var roles = graph.Types.Select(profile.RoleOf).ToHashSet();
+        var missing = profile.ExtraRules.Distinct(StringComparer.Ordinal).SelectMany(rule => Needs(rule).Where(role => !roles.Contains(role)).Select(role => $"{rule} needs a {role} type"))
+            .Concat(profile.ExtraRules.Contains(HexagonalRuleIds.HandlerReferenced) && !graph.Types.Any(t => IsTest(t, profile)) ? [$"{HexagonalRuleIds.HandlerReferenced} needs test types (TestPattern)"] : [])
+            .ToArray();
+        if (missing.Length > 0)
+        {
+            throw new InvalidOperationException("Hexagonal role patterns match nothing: " + string.Join("; ", missing) + ". Check the profile patterns and the analysed assemblies.");
+        }
+    }
+
+    private static HexRole[] Needs(string rule) =>
+        rule switch
+        {
+            HexagonalRuleIds.HandlerIsolation or HexagonalRuleIds.OnePortPerUseCase or HexagonalRuleIds.HandlerReferenced => [HexRole.PortsInput],
+            HexagonalRuleIds.FeatureMirror => [HexRole.Core, HexRole.PortsInput],
+            HexagonalRuleIds.FlowDirection or HexagonalRuleIds.NoLevelSkipping => [HexRole.Core],
+            HexagonalRuleIds.ResultAtBoundary => [HexRole.Core],
+            _ => [],
+        };
 
     internal static readonly (string Id, Func<TypeGraph, HexagonalProfile, IReadOnlyList<RuleViolation>> Run)[] Rules =
     [
