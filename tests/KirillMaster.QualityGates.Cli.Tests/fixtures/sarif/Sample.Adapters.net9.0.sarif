@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": { "driver": { "name": "Microsoft (R) Visual C# Compiler" } },
+      "results": [
+        { "ruleId": "S1481", "level": "warning", "message": { "text": "m" }, "locations": [ { "physicalLocation": { "artifactLocation": { "uri": "file:///src/R.cs" }, "region": { "startLine": 4, "startColumn": 5 } } } ] }
+      ]
+    }
+  ]
+}

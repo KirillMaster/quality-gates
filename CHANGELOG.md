@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- Cli: new `KirillMaster.QualityGates.Cli` dotnet tool (`qg`), the generic gates CLI moved into core: commands `pr`, `mutation-diff`, `mutation-ratchet`, `nightly`, `audit`, `grandfather`, `baseline`. Domain, application and adapter layers live in one assembly (`Domain`, `Application`, `Adapters`, `Commands` namespaces). Organisation-specific analyzers, MSBuild package and CI pipeline scripts are not part of it. Tests ported (unit, fixtures, git integration).
+
 ## 0.4.0
 
 - Analyzers: QG0188 (`lock` in Core) and QG0189 (static non-readonly field or static readonly mutable collection in Core), Z1 NoSharedMutableState; warning by default, Core layer only, test/excluded assemblies skipped, no diagnostics on symbols without source location.

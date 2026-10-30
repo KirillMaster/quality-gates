@@ -1,0 +1,18 @@
+diff --git a/src/Old.cs b/src/New.cs
+similarity index 90%
+rename from src/Old.cs
+rename to src/New.cs
+index 111..222 100644
+--- a/src/Old.cs
++++ b/src/New.cs
+@@ -3 +3 @@
+-a
++b
+diff --git a/src/Gone.cs b/src/Gone.cs
+deleted file mode 100644
+index 333..000
+--- a/src/Gone.cs
++++ /dev/null
+@@ -1,2 +0,0 @@
+-a
+-b

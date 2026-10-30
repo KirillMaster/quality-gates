@@ -1,0 +1,4 @@
+{
+  "service": "sample",
+  "diffCoverage": { "core": "ninety" }
+}
