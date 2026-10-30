@@ -23,6 +23,8 @@ internal sealed class ShapeRoles
 
     public bool Skip { get; }
 
+    public bool CoreLayer => _coreLayer;
+
     public bool IsPort(ISymbol type) => InSegments(type, "qg_port_namespace_segments", ShapeDescriptors.PortSegments);
 
     public bool IsModel(ISymbol type) => InSegments(type, "qg_model_namespace_segments", ShapeDescriptors.ModelSegments);
@@ -52,7 +54,9 @@ internal sealed class ShapeRoles
         }
 
         var segments = _config.List(tree, key, fallback);
-        return type.ContainingNamespace.ToDisplayString().Split('.').Any(segments.Contains);
+        var ns = type.ContainingNamespace.ToDisplayString();
+        var dotted = "." + ns + ".";
+        return segments.Any(s => s.IndexOf('.') >= 0 ? dotted.IndexOf("." + s + ".", StringComparison.OrdinalIgnoreCase) >= 0 : ns.Split('.').Contains(s, StringComparer.OrdinalIgnoreCase));
     }
 }
 
@@ -60,8 +64,17 @@ internal static class Patterns
 {
     private static readonly ConcurrentDictionary<string, Regex> Cache = new(StringComparer.Ordinal);
 
-    public static bool IsMatch(string pattern, string input) =>
-        Cache.GetOrAdd(pattern, p => new Regex(p, RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1))).IsMatch(input);
+    public static bool IsMatch(string pattern, string input)
+    {
+        try
+        {
+            return Cache.GetOrAdd(pattern, p => new Regex(p, RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1))).IsMatch(input);
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return false;
+        }
+    }
 
     public static string Option(AnalyzerOptions options, SyntaxTree tree, string key, string fallback) =>
         options.AnalyzerConfigOptionsProvider.GetOptions(tree).TryGetValue(key, out var value) && value.Length > 0 ? value : fallback;

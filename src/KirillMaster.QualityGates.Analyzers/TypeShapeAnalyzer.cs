@@ -61,10 +61,9 @@ public sealed class TypeShapeAnalyzer : QgAnalyzer
             }
         }
 
-        foreach (var type in types.Where(t => t.TypeKind == TypeKind.Class && t.DeclaredAccessibility == Accessibility.Public))
+        foreach (var type in types.Where(t => t.TypeKind == TypeKind.Class && (t.DeclaredAccessibility != Accessibility.Public || roles.CoreLayer)))
         {
-            var inScope = roles.IsCore(type) || roles.InSegments(type, "qg_sealed_namespace_segments", ShapeDescriptors.SealedSegments);
-            if (inScope && IsSealable(type) && !derived.Contains(type.OriginalDefinition))
+            if (IsSealable(type) && !derived.Contains(type.OriginalDefinition))
             {
                 context.ReportDiagnostic(Diagnostic.Create(ShapeDescriptors.UnsealedClass, type.Locations[0], type.Name));
             }
@@ -73,7 +72,8 @@ public sealed class TypeShapeAnalyzer : QgAnalyzer
 
     private static bool IsPublicCoreLeak(INamedTypeSymbol type, ShapeRoles roles, ImmutableHashSet<INamedTypeSymbol> reachable) =>
         type.DeclaredAccessibility == Accessibility.Public
-        && roles.IsCore(type)
+        && roles.CoreLayer
+        && !roles.IsPort(type)
         && !roles.IsContract(type)
         && !reachable.Contains(type)
         && type.Name != "Program"
@@ -332,11 +332,26 @@ internal static class TechnologyNames
         }
     }
 
+    private static bool ContainsToken(string name, string word)
+    {
+        for (var i = name.IndexOf(word, StringComparison.OrdinalIgnoreCase); i >= 0; i = name.IndexOf(word, i + 1, StringComparison.OrdinalIgnoreCase))
+        {
+            var end = i + word.Length;
+            var starts = i == 0 || (char.IsUpper(name[i]) && (!char.IsLetter(name[i - 1]) || char.IsLower(name[i - 1]) || (i == 1 && name[0] == 'I')));
+            if (starts && (end == name.Length || !char.IsLower(name[end])))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private static void Check(SymbolAnalysisContext context, string name, Location location, ImmutableHashSet<string> words)
     {
         var tokens = Tokens.Split(name);
         var word = tokens.FirstOrDefault(words.Contains)
-            ?? words.FirstOrDefault(w => w.Any(char.IsDigit) && name.IndexOf(w, StringComparison.OrdinalIgnoreCase) >= 0);
+            ?? words.FirstOrDefault(w => w.Any(char.IsDigit) && ContainsToken(name, w));
         if (word is not null)
         {
             context.ReportDiagnostic(Diagnostic.Create(ShapeDescriptors.TechnologyWord, location, name, word));

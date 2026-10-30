@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 
 namespace KirillMaster.QualityGates.Analyzers;
@@ -7,6 +8,11 @@ public sealed class HardcodeAnalyzer : QgAnalyzer
 {
     private const string SchemeUrl = @"^[A-Za-z][A-Za-z0-9+.\-]*://\S+";
     private const string Ipv4 = @"^\d{1,3}(\.\d{1,3}){3}(:\d+)?(/\S*)?$";
+
+    private static readonly ConcurrentDictionary<ImmutableHashSet<string>, string> HostPatterns = new();
+
+    private static readonly ImmutableHashSet<string> ComparisonMethods = ImmutableHashSet.Create(
+        StringComparer.Ordinal, "Equals", "StartsWith", "EndsWith", "Contains", "Parse", "TryParse");
 
     private static readonly ImmutableHashSet<string> FreeKinds = ImmutableHashSet.Create(StringComparer.Ordinal, "SchemaLimit", "Protocol", "Math");
 
@@ -43,7 +49,7 @@ public sealed class HardcodeAnalyzer : QgAnalyzer
     {
         var literal = (LiteralExpressionSyntax)context.Node;
         var text = literal.Token.ValueText;
-        if (!IsEndpoint(text, context.Options, literal.SyntaxTree) || IsExemptContext(literal, context.Options, config))
+        if (!IsEndpoint(text, config, literal.SyntaxTree) || IsComparisonOrVersion(literal) || IsExemptContext(literal, context.Options, config))
         {
             return;
         }
@@ -65,8 +71,18 @@ public sealed class HardcodeAnalyzer : QgAnalyzer
     private static bool IsTrivial(LiteralExpressionSyntax literal)
     {
         var value = Convert.ToDouble(literal.Token.Value, CultureInfo.InvariantCulture);
-        return value is 0 or 1;
+        var index = literal.Parent is ArgumentSyntax { Parent: BracketedArgumentListSyntax };
+        return value is 0 or 1 || (index && value == 2);
     }
+
+    private static bool IsComparisonOrVersion(LiteralExpressionSyntax literal) => literal.Parent switch
+    {
+        BinaryExpressionSyntax binary => binary.IsKind(SyntaxKind.EqualsExpression) || binary.IsKind(SyntaxKind.NotEqualsExpression),
+        ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax call } } =>
+            (call.Expression is MemberAccessExpressionSyntax access && (ComparisonMethods.Contains(access.Name.Identifier.ValueText) || access.Expression.ToString() == "Version")),
+        ArgumentSyntax { Parent: ArgumentListSyntax { Parent: ObjectCreationExpressionSyntax creation } } => creation.Type.ToString() is "Version" or "System.Version",
+        _ => false,
+    };
 
     private static bool IsTimeSpanArgument(LiteralExpressionSyntax literal) =>
         literal.Parent is ArgumentSyntax { Parent: ArgumentListSyntax { Parent: InvocationExpressionSyntax invocation } } && IsTimeSpanFactory(invocation)
@@ -81,16 +97,22 @@ public sealed class HardcodeAnalyzer : QgAnalyzer
         invocation.ArgumentList.Arguments.Count > 0
         && invocation.ArgumentList.Arguments[0].Expression is LiteralExpressionSyntax or PrefixUnaryExpressionSyntax { Operand: LiteralExpressionSyntax };
 
-    private static bool IsEndpoint(string text, AnalyzerOptions options, SyntaxTree tree)
+    private static bool IsEndpoint(string text, CompilationConfig config, SyntaxTree tree)
     {
         if (text.Length < 4 || text.IndexOf(' ') >= 0)
         {
             return false;
         }
 
-        var suffixes = Thresholds.GetList(options, tree, "qg_url_host_suffixes", ShapeDescriptors.UrlHostSuffixes);
-        var host = @"^(localhost|[a-z0-9\-]+(\.[a-z0-9\-]+)*\.(" + string.Join("|", suffixes.Select(System.Text.RegularExpressions.Regex.Escape)) + @"))(:\d+)?(/\S*)?$";
-        return Patterns.IsMatch(SchemeUrl, text) || Patterns.IsMatch(Ipv4, text) || Patterns.IsMatch(host, text);
+        var suffixes = config.List(tree, "qg_url_host_suffixes", ShapeDescriptors.UrlHostSuffixes);
+        var host = HostPatterns.GetOrAdd(suffixes, s => @"^(localhost|[a-z0-9\-]+(\.[a-z0-9\-]+)*\.(" + string.Join("|", s.Select(System.Text.RegularExpressions.Regex.Escape)) + @"))(:\d+)?(/\S*)?$");
+        return Patterns.IsMatch(SchemeUrl, text) || (Patterns.IsMatch(Ipv4, text) && ValidOctets(text)) || Patterns.IsMatch(host, text);
+    }
+
+    private static bool ValidOctets(string text)
+    {
+        var address = text.Split(':', '/')[0];
+        return address.Split('.').All(part => int.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out var octet) && octet <= 255);
     }
 
     private static bool IsExemptContext(SyntaxNode node, AnalyzerOptions options, CompilationConfig config)
@@ -104,7 +126,9 @@ public sealed class HardcodeAnalyzer : QgAnalyzer
         {
             switch (ancestor)
             {
-                case AttributeListSyntax or EnumMemberDeclarationSyntax:
+                case AttributeListSyntax or EnumMemberDeclarationSyntax or ParameterSyntax or PatternSyntax or SwitchLabelSyntax:
+                    return true;
+                case LocalDeclarationStatementSyntax local when local.IsConst:
                     return true;
                 case FieldDeclarationSyntax field when HasFreeInvariant(field.AttributeLists, field.Declaration.Variables[0].Identifier.ValueText, options, node.SyntaxTree):
                     return true;

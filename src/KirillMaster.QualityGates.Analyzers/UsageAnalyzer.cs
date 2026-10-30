@@ -47,7 +47,12 @@ public sealed class UsageAnalyzer : QgAnalyzer
             return;
         }
 
-        var owner = OwningFeature(enumType, roles);
+        if (roles.InSegments(enumType, "qg_enum_shared_segments", ShapeDescriptors.EnumSharedSegments))
+        {
+            return;
+        }
+
+        var owner = OwningFeature(enumType, roles, context.Compilation.AssemblyName ?? string.Empty);
         var where = current.ContainingNamespace.ToDisplayString();
         if (owner.Length > 0 && where != owner && !where.StartsWith(owner + ".", StringComparison.Ordinal))
         {
@@ -55,8 +60,14 @@ public sealed class UsageAnalyzer : QgAnalyzer
         }
     }
 
-    private static string OwningFeature(ITypeSymbol enumType, ShapeRoles roles)
+    private static string OwningFeature(ITypeSymbol enumType, ShapeRoles roles, string assembly)
     {
+        var full = enumType.ContainingNamespace.ToDisplayString();
+        if (assembly.Length > 0 && full.StartsWith(assembly + ".", StringComparison.Ordinal))
+        {
+            return assembly + "." + full.Substring(assembly.Length + 1).Split('.')[0];
+        }
+
         var segments = enumType.ContainingNamespace.ToDisplayString().Split('.').ToList();
         var structural = roles.List(enumType, "qg_model_namespace_segments", ShapeDescriptors.ModelSegments)
             .Union(roles.List(enumType, "qg_contract_namespace_segments", ShapeDescriptors.ContractSegments));
@@ -71,6 +82,17 @@ public sealed class UsageAnalyzer : QgAnalyzer
     private static void AnalyzeInvocation(SyntaxNodeAnalysisContext context)
     {
         var invocation = (InvocationExpressionSyntax)context.Node;
+        var called = invocation.Expression switch
+        {
+            MemberAccessExpressionSyntax access => access.Name.Identifier.ValueText,
+            SimpleNameSyntax name => name.Identifier.ValueText,
+            _ => string.Empty,
+        };
+        if (called is not ("Round" or "AddOptions" or "Configure"))
+        {
+            return;
+        }
+
         if (context.SemanticModel.GetSymbolInfo(invocation, context.CancellationToken).Symbol is not IMethodSymbol method)
         {
             return;
@@ -165,10 +187,16 @@ public sealed class UsageAnalyzer : QgAnalyzer
             return;
         }
 
+        if (!roles.IsCore(method.ContainingType) && !roles.IsModel(method.ContainingType))
+        {
+            return;
+        }
+
         var exempt = roles.List(method, "qg_cqs_exempt_prefixes", ShapeDescriptors.CqsExemptPrefixes);
         var results = roles.List(method, "qg_result_type_names", ShapeDescriptors.ResultTypeNames);
         var returned = Symbols.UnwrapTask(method.ReturnType);
-        if (exempt.Any(p => method.Name.StartsWith(p, StringComparison.Ordinal)) || results.Contains(returned.Name)
+        if (exempt.Any(p => method.Name.StartsWith(p, StringComparison.Ordinal)) || method.Name.Contains("OrCreate") || method.Name.Contains("OrAdd")
+            || body.ToString().Contains("Interlocked.") || results.Contains(returned.Name)
             || SymbolEqualityComparer.Default.Equals(returned, method.ContainingType))
         {
             return;
@@ -201,7 +229,7 @@ public sealed class UsageAnalyzer : QgAnalyzer
                 target = element.Expression;
             }
 
-            if (target is not null && IsOwnState(target, model, owner, token))
+            if (target is not null && target.ToString().IndexOf("cache", StringComparison.OrdinalIgnoreCase) < 0 && IsOwnState(target, model, owner, token))
             {
                 return target.ToString();
             }

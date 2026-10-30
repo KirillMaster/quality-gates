@@ -4,7 +4,7 @@ public static class ShapeDescriptors
 {
     public const string PortSegments = "Ports";
     public const string CoreSegments = "Core,Domain,Application";
-    public const string ModelSegments = "Model,Models,ValueObjects,Entities";
+    public const string ModelSegments = "ValueObjects,Model,Domain.Model";
     public const string ContractSegments = "Contracts,Messages,Dtos";
     public const string AdapterSegments = "Adapters,Runner";
     public const string IdNamePattern = "^(id|ids)$|(Id|Ids|Guid|Uuid)$";
@@ -14,11 +14,11 @@ public static class ShapeDescriptors
     public const string PortTechnologyPrefixes = "System.Net.Http,System.Net.Sockets,System.Data,System.IO,System.Text.Json,System.Xml,Newtonsoft.Json,Npgsql,Microsoft.Data.SqlClient,System.Data.SqlClient,Amazon,Microsoft.AspNetCore,StackExchange.Redis,Grpc,MassTransit,RabbitMQ,Confluent.Kafka,MongoDB";
     public const string PortWhitelist = "System.Threading.Tasks.Task,System.Threading.Tasks.ValueTask,System.Threading.CancellationToken,System.Collections.Generic.IAsyncEnumerable,System.Collections.Generic.IEnumerable,System.Collections.Generic.IReadOnlyList,System.Collections.Generic.IReadOnlyCollection,System.Collections.Generic.IReadOnlyDictionary,System.Collections.Generic.KeyValuePair,System.Collections.Immutable.ImmutableArray,System.Collections.Immutable.ImmutableList,System.Collections.Immutable.ImmutableDictionary,System.Nullable,System.Guid,System.DateTime,System.DateTimeOffset,System.TimeSpan,System.DateOnly,System.TimeOnly,System.ValueTuple,System.Uri";
     public const string PortAllowedAssemblies = "Contracts,Results";
-    public const string SealedSegments = "Core,Domain,Application,Adapters,Runner";
     public const string ResultTypeNames = "Result";
     public const string FactoryNames = "Create";
-    public const string CqsExemptPrefixes = "Try,Pop,Dequeue,Next,Increment,Generate";
-    public const string EnumSwitchExemptSegments = "Adapters,Mappers,Mapping,Runner";
+    public const string CqsExemptPrefixes = "Try,Pop,Dequeue,Next,Increment,Generate,Add,Create";
+    public const string EnumSwitchExemptSegments = "Adapters,Mappers,Mapping,Runner,Controllers,Api";
+    public const string EnumSharedSegments = "Enums,Common,Shared";
     public const string TunableNamePattern = "(?i)(timeout|ttl|limit|max|min|threshold|retr(y|ies)|interval|delay|duration|expir|size|count|capacity|batch|period|attempt)";
     public const string UrlHostSuffixes = "com,net,org,io,ru,dev,cloud,local,internal,aws";
 

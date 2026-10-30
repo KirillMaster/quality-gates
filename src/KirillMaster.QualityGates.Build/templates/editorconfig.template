@@ -41,10 +41,9 @@ indent_size = 2
 # QG0130-QG0152 (shape, hexagonal, no-hardcode): role detection by namespace segments (defaults shown) and QualityGatesLayer (core|adapter|test)
 # qg_port_namespace_segments = Ports
 # qg_core_namespace_segments = Core,Domain,Application
-# qg_model_namespace_segments = Model,Models,ValueObjects,Entities
+# qg_model_namespace_segments = ValueObjects,Model,Domain.Model
 # qg_contract_namespace_segments = Contracts,Messages,Dtos
 # qg_adapter_namespace_segments = Adapters,Runner
-# qg_sealed_namespace_segments = Core,Domain,Application,Adapters,Runner
 # qg_technology_words = Sql,Postgres,Postgresql,Dynamo,DynamoDb,Db,Sqs,Sns,Http,Redis,Json,Ef,Grpc,S3,Dto,Mongo,Kafka,Rabbit
 # qg_port_type_whitelist = <see docs/analyzers.md>
 # qg_tunable_name_regex = (?i)(timeout|ttl|limit|max|min|threshold|retr(y|ies)|interval|delay|duration|expir|size|count|capacity|batch|period|attempt)

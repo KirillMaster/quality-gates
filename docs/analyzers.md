@@ -76,24 +76,23 @@ Skipped/ignored test without an issue reference.
 Too many asserts. `qg_max_asserts` (5).
 
 ## Shape, hexagonal and no-hardcode (QG0130-QG0152, default severity warning)
-Role detection: a type's namespace segments are matched against configurable lists (comma separated, a setting replaces the default). The `QualityGatesLayer` MSBuild property is compiler-visible (`build_property.QualityGatesLayer`): `test`/`excluded` silences every rule below, `core` treats all types as Core. Assemblies named `*.Tests`/`*.Test` are skipped too.
+Role detection: a type's namespace segments are matched against configurable lists (comma separated, a setting replaces the default). The `QualityGatesLayer` MSBuild property is compiler-visible (`build_property.QualityGatesLayer`): `test`/`excluded` silences every rule below, `core` treats all types as Core. `QualityGatesLayer` is derived from the project name only when the props are imported; set it in `Directory.Build.props` (or the project) when your layout differs. Assemblies named `*.Tests`/`*.Test` are skipped too.
 
 | Key | Default | Meaning |
 |---|---|---|
 | `qg_port_namespace_segments` | `Ports` | port interfaces (`Ports.Input`, `Ports.Output`) |
 | `qg_core_namespace_segments` | `Core,Domain,Application` | Core (ports excluded) |
-| `qg_model_namespace_segments` | `Model,Models,ValueObjects,Entities` | domain model types |
+| `qg_model_namespace_segments` | `ValueObjects,Model,Domain.Model` | domain model types (dotted entries match a namespace subsequence) |
 | `qg_contract_namespace_segments` | `Contracts,Messages,Dtos` | contracts/DTO/messages |
 | `qg_adapter_namespace_segments` | `Adapters,Runner` | adapters (exempt from QG0138) |
-| `qg_sealed_namespace_segments` | `Core,Domain,Application,Adapters,Runner` | where QG0132 applies |
 | `qg_result_type_names` | `Result` | Result type names for QG0139 and QG0147 |
 
 ### qg0130
 Port method parameter that is a primitive id (`string/int/long/Guid` named `id`, `*Id`, `*Ids`, `*Guid`; `qg_id_name_pattern`) or primitive money (`decimal/double/float` named `amount`, `*Price`, `*Total`...; `qg_money_name_pattern`). Collections of such primitives count. Use a value object (H1).
 ### qg0131
-Public type in Core (outside ports and contracts) that is not reachable from a port signature (transitively through public members, base types, interfaces). DI extension classes (extension on `IServiceCollection`) and `Program` are exempt (H3).
+Only with `QualityGatesLayer=core`: public type (outside ports and contracts) that is not reachable from a port signature (transitively through public members, base types, interfaces). DI extension classes (extension on `IServiceCollection`) and `Program` are exempt (H3).
 ### qg0132
-Public class in `qg_sealed_namespace_segments` that is not sealed/abstract/static, has no derived type in the compilation and no virtual/abstract/protected members. Internal classes are covered by CA1852 (enabled in `quality.globalconfig`) (H3).
+Non-public class (or any class when `QualityGatesLayer=core`) that is not sealed/abstract/static, has no derived type in the compilation and no virtual/abstract/protected members. Public classes elsewhere are not reported because cross-assembly inheritance is unknown (H3).
 ### qg0133
 Model type with a public setter (`set`, not `init`) or a public non-readonly field (H4).
 ### qg0134
@@ -105,7 +104,7 @@ Port exposes `IQueryable`, an EF Core type, or (returns only) a mutable collecti
 ### qg0137
 Port method returning `Task`/`ValueTask`/`IAsyncEnumerable` without a `CancellationToken` parameter (H9). Propagation is covered by CA2016 (error in `quality.globalconfig`).
 ### qg0138
-`switch` statement/expression over an enum declared in this assembly, written outside the enum's namespace (a trailing `Model`/`Contracts` segment is dropped to get the feature namespace). Adapters/mappers (`qg_enum_switch_exempt_segments`: `Adapters,Mappers,Mapping,Runner`) and global-namespace code are exempt (H2 owning feature).
+`switch` statement/expression over an enum declared in this assembly, written outside the owning feature: the first namespace segment under the assembly root namespace (fallback: the enum namespace without a trailing `Model`/`Contracts`). Enums in `qg_enum_shared_segments` (`Enums,Common,Shared`) and code in `qg_enum_switch_exempt_segments` (`Adapters,Mappers,Mapping,Runner,Controllers,Api`) or the global namespace are exempt (H2 owning feature).
 ### qg0139
 Value object in the model (struct, sealed class or record with exactly one immutable data member) that has a public constructor or no static `Create` (`qg_value_object_factory_names`) returning `Result<T>` (X5).
 ### qg0140
@@ -123,14 +122,14 @@ Property, field or parameter named like money (`qg_money_name_pattern`) typed `d
 ### qg0146
 Port signature type that is not a primitive/enum, not declared in the same assembly, not from an assembly whose name contains an entry of `qg_port_allowed_assemblies` (`Contracts,Results`) and not in `qg_port_type_whitelist` (Task, ValueTask, CancellationToken, IAsyncEnumerable, read-only collections, Guid, date/time types, Nullable, ValueTuple, Uri) (Z18, CN-9).
 ### qg0147
-Non-void instance method that assigns/increments a field or property of its own type or calls a mutating collection method (`Add`, `Remove`, `Clear`, `Push`, `Enqueue`...) on one. Exempt: `Try*`/`Pop*`/`Dequeue*`/`Next*`/`Increment*`/`Generate*` (`qg_cqs_exempt_prefixes`), methods returning `Result`/`Result<T>`, fluent methods returning their own type, `??=` lazy init, overrides, interface implementations (C28 heuristic).
+Non-void instance method that assigns/increments a field or property of its own type or calls a mutating collection method (`Add`, `Remove`, `Clear`, `Push`, `Enqueue`...) on one. Only in Core/Model types. Exempt: `Try*`/`Pop*`/`Dequeue*`/`Next*`/`Increment*`/`Generate*`/`Add*`/`Create*` (`qg_cqs_exempt_prefixes`), `*OrCreate*`/`*OrAdd*`, `Interlocked` bodies, cache fields, methods returning `Result`/`Result<T>`, fluent methods returning their own type, `??=` lazy init, overrides, interface implementations (C28 heuristic).
 ### qg0150
-Numeric literal other than 0, 1, -1 in non-test, non-composition code. Not reported in attributes, enum member values or direct `TimeSpan.From*` arguments (QG0151). A literal in a `const`/`static readonly` member is reported unless the member carries `[Invariant(InvariantKind.X)]`: kinds `SchemaLimit`, `Protocol`, `Math` are always exempt; `Identifier`/`Metric` are exempt only when the member name does not match `qg_tunable_name_regex` (`timeout|ttl|limit|max|min|threshold|retry|interval|delay|duration|size|count|capacity|batch|period|attempt`, case-insensitive).
+Numeric literal other than 0, 1, -1 in non-test, non-composition code. Not reported in attributes, enum member values, default parameter values, local `const`, case/pattern labels, indices 0..2 or direct `TimeSpan.From*` arguments (QG0151). A literal in a `const`/`static readonly` member is reported unless the member carries `[Invariant(InvariantKind.X)]`: kinds `SchemaLimit`, `Protocol`, `Math` are always exempt; `Identifier`/`Metric` are exempt only when the member name does not match `qg_tunable_name_regex` (`timeout|ttl|limit|max|min|threshold|retry|interval|delay|duration|size|count|capacity|batch|period|attempt`, case-insensitive).
 ### qg0151
 `TimeSpan.From*(literal)`; same `[Invariant]` exemption.
 ### qg0152
-String literal that is a URL (`scheme://...`), IPv4 address, `localhost` or a lowercase host ending in a suffix from `qg_url_host_suffixes` (`com,net,org,io,ru,dev,cloud,local,internal,aws`); same `[Invariant]` exemption (use `Protocol`).
+String literal that is a URL (`scheme://...`), IPv4 address, `localhost` or a lowercase host ending in a suffix from `qg_url_host_suffixes` (`com,net,org,io,ru,dev,cloud,local,internal,aws`); same `[Invariant]` exemption (use `Protocol`). Not reported for `==`/`!=`, `Equals`/`StartsWith`/`EndsWith`/`Contains` operands, `Version` arguments, and IPv4 octets above 255.
 
 The `Invariant` attribute is shipped source-only by the Build package (internal `KirillMaster.QualityGates.InvariantAttribute` and `InvariantKind`, `using KirillMaster.QualityGates;`); set `QualityGatesInvariantAttribute=false` to supply your own (matched by name `Invariant`/`InvariantAttribute`).
 
-`quality.globalconfig` also enables CA1852 (seal internal types), S109 (magic numbers), S1075 (hardcoded URIs) and S2360 (optional parameters, H10) as warnings; `quality.legacy.globalconfig` makes them and QG0130-QG0152 suggestions.
+`quality.globalconfig` also enables CA1852 (seal internal types), S109 (magic numbers), S1075 (hardcoded URIs) and S2360 (optional parameters, H10) as warnings; `quality.legacy.globalconfig` keeps them (and QG0130-QG0152) at warning; `quality.refactor.globalconfig` raises the `Shape` and `NoHardcode` categories to error.

@@ -102,10 +102,12 @@ public sealed class ShapeTests
         const string Hidden = "namespace App.Core { public class Calculator { } }";
         const string Exposed = "namespace App.Core { public sealed class Order { } } namespace App.Ports.Output { public interface IRepo { App.Core.Order Get(); } }";
 
-        Assert.Contains("QG0131", await Ids(Hidden));
-        Assert.DoesNotContain("QG0131", await Ids(Exposed));
-        Assert.DoesNotContain("QG0131", await Ids("namespace App.Core { internal sealed class Calculator { } }"));
-        Assert.DoesNotContain("QG0131", await Ids("namespace App.Services { public class Calculator { } }"));
+        var core = ("build_property.QualityGatesLayer", "core");
+
+        Assert.Contains("QG0131", await Ids(Hidden, core));
+        Assert.DoesNotContain("QG0131", await Ids(Exposed, core));
+        Assert.DoesNotContain("QG0131", await Ids("namespace App.Core { internal sealed class Calculator { } }", core));
+        Assert.DoesNotContain("QG0131", await Ids(Hidden));
     }
 
     [Fact]
@@ -115,11 +117,14 @@ public sealed class ShapeTests
     [Fact]
     public async Task Unsealed_public_class_without_derived_types_is_reported()
     {
-        Assert.Contains("QG0132", await Ids("namespace App.Adapters { public class Store { } }"));
-        Assert.DoesNotContain("QG0132", await Ids("namespace App.Adapters { public sealed class Store { } }"));
-        Assert.DoesNotContain("QG0132", await Ids("namespace App.Adapters { public class Store { } public sealed class Derived : Store { } }", ("qg_x", "1")));
-        Assert.DoesNotContain("QG0132", await Ids("namespace App.Adapters { public class Store { public virtual void Run() { } } }"));
-        Assert.DoesNotContain("QG0132", await Ids("namespace App.Other { public class Store { } }"));
+        var core = ("build_property.QualityGatesLayer", "core");
+
+        Assert.Contains("QG0132", await Ids("namespace App { internal class Store { } }"));
+        Assert.Contains("QG0132", await Ids("namespace App { public class Store { } }", core));
+        Assert.DoesNotContain("QG0132", await Ids("namespace App { public class Store { } }"));
+        Assert.DoesNotContain("QG0132", await Ids("namespace App { public sealed class Store { } }", core));
+        Assert.DoesNotContain("QG0132", await Ids("namespace App { internal class Store { } internal sealed class Derived : Store { } }"));
+        Assert.DoesNotContain("QG0132", await Ids("namespace App { internal class Store { public virtual void Run() { } } }"));
     }
 
     [Fact]
@@ -268,7 +273,7 @@ public sealed class ShapeTests
     [Fact]
     public async Task Method_that_returns_a_value_and_mutates_state_is_reported()
     {
-        var ids = await Ids("namespace App { public sealed class Counter { private int _n; private readonly System.Collections.Generic.List<int> _l = new(); public int Bump() { _n++; return _n; } public int Add(int x) { _l.Add(x); return _l.Count; } public int Peek() => _n; public void Reset() { _n = 0; } } }");
+        var ids = await Ids("namespace App.Core { public sealed class Counter { private int _n; private readonly System.Collections.Generic.List<int> _l = new(); public int Bump() { _n++; return _n; } public int Collect(int x) { _l.Add(x); return _l.Count; } public int Peek() => _n; public void Reset() { _n = 0; } } }");
 
         Assert.Equal(2, ids.Count(i => i == "QG0147"));
     }
@@ -277,7 +282,7 @@ public sealed class ShapeTests
     public async Task Command_query_exemptions_are_honoured()
     {
         var ids = await Ids("""
-            namespace App
+            namespace App.Core
             {
                 public sealed class Result<T> { }
                 public sealed class Box
@@ -288,6 +293,11 @@ public sealed class ShapeTests
                     public Box With(int n) { _n = n; return this; }
                     public object Cached() => _cache ??= new object();
                     public int Local() { var n = 0; n++; return n; }
+                    public int GetOrCreateSlot() { _n++; return _n; }
+                    public int AddItem() { _n++; return _n; }
+                    public int Tick() => System.Threading.Interlocked.Increment(ref _n);
+                    public int Cached() { _cacheHits++; return _cacheHits; }
+                    private int _cacheHits;
                 }
             }
             """);
@@ -357,5 +367,90 @@ public sealed class ShapeTests
         var ids = await Ids(Source, ("build_property.QualityGatesLayer", "test"));
 
         Assert.DoesNotContain(ids, i => string.Compare(i, "QG0130", StringComparison.Ordinal) >= 0);
+    }
+
+    [Fact]
+    public async Task Cqs_is_limited_to_core_and_model()
+    {
+        const string Body = "public sealed class Counter { private int _n; public int Bump() { _n++; return _n; } }";
+
+        Assert.Contains("QG0147", await Ids("namespace App.Core { " + Body + " }"));
+        Assert.DoesNotContain("QG0147", await Ids("namespace App.Adapters { " + Body + " }"));
+    }
+
+    [Fact]
+    public async Task Model_segments_default_excludes_plain_models_and_entities_but_accepts_domain_model()
+    {
+        const string Body = "public sealed class Row { public int Qty { get; set; } }";
+
+        Assert.DoesNotContain("QG0133", await Ids("namespace App.Models { " + Body + " }"));
+        Assert.DoesNotContain("QG0133", await Ids("namespace App.Entities { " + Body + " }"));
+        Assert.Contains("QG0133", await Ids("namespace App.Domain.Model { " + Body + " }"));
+        Assert.Contains("QG0133", await Ids("namespace App.Models { " + Body + " }", ("qg_model_namespace_segments", "Models")));
+    }
+
+    [Fact]
+    public async Task Enum_owner_is_the_feature_root_under_the_assembly_namespace()
+    {
+        const string Enum = "namespace App.Orders.Model { public enum Status { New, Paid } }\nnamespace App.Common { public enum Shared { A, B } }\n";
+        const string Same = "namespace App.Orders.Services { public sealed class P { public int Show(App.Orders.Model.Status s) => s switch { App.Orders.Model.Status.New => 1, _ => throw new System.ArgumentException() }; } }";
+        const string Other = "namespace App.Billing { public sealed class P { public int Show(App.Orders.Model.Status s) => s switch { App.Orders.Model.Status.New => 1, _ => throw new System.ArgumentException() }; } }";
+        const string Common = "namespace App.Billing { public sealed class P { public int Show(App.Common.Shared s) => s switch { App.Common.Shared.A => 1, _ => throw new System.ArgumentException() }; } }";
+        const string Controller = "namespace App.Billing.Controllers { public sealed class P { public int Show(App.Orders.Model.Status s) => s switch { App.Orders.Model.Status.New => 1, _ => throw new System.ArgumentException() }; } }";
+
+        Assert.DoesNotContain("QG0138", await AnalyzerHarness.DiagnoseInAssemblyAsync(Enum + Same, "App"));
+        Assert.Contains("QG0138", await AnalyzerHarness.DiagnoseInAssemblyAsync(Enum + Other, "App"));
+        Assert.DoesNotContain("QG0138", await AnalyzerHarness.DiagnoseInAssemblyAsync(Enum + Common, "App"));
+        Assert.DoesNotContain("QG0138", await AnalyzerHarness.DiagnoseInAssemblyAsync(Enum + Controller, "App"));
+    }
+
+    [Fact]
+    public async Task Hardcode_exempts_local_const_default_parameters_labels_and_small_indices()
+    {
+        var ids = await Ids("namespace App { public sealed class S { public int A(int[] xs, int n = 5) { const int Local = 7; return n switch { 3 => xs[2], > 9 => Local, _ => 0 }; } public int B(int n) { switch (n) { case 4: return 0; default: return 1; } } } }");
+
+        Assert.DoesNotContain("QG0150", ids);
+        Assert.Contains("QG0150", await Ids("namespace App { public sealed class S { public int A(int[] xs) => xs[3]; } }"));
+    }
+
+    [Fact]
+    public async Task Endpoint_detection_ignores_versions_invalid_addresses_and_comparisons()
+    {
+        var ids = await Ids("namespace App { using System; public sealed class S { public Version A() => Version.Parse(\"1.2.3.4\"); public Version B() => new Version(\"1.2.3.4\"); public string C() => \"999.1.1.1\"; public bool D(string h) => h == \"localhost\" || h.StartsWith(\"http://\", StringComparison.Ordinal); } }");
+
+        Assert.DoesNotContain("QG0152", ids);
+    }
+
+    [Fact]
+    public async Task Technology_digit_words_match_whole_tokens_only()
+    {
+        const string Words = "namespace App.Core { internal sealed class ";
+
+        Assert.Contains("QG0141", await Ids(Words + "S3Client { } }"));
+        Assert.DoesNotContain("QG0141", await Ids(Words + "Foos3x { } }"));
+        Assert.DoesNotContain("QG0141", await Ids(Words + "S3bucket { } }"));
+    }
+
+    [Fact]
+    public async Task Catastrophic_user_regex_times_out_without_throwing() =>
+        Assert.DoesNotContain("QG0130", await Ids("namespace App.Ports.Output { public interface IRepo { void Get(string aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab); } }", ("qg_id_name_pattern", "^(a+)+$")));
+
+    [Fact]
+    public void Legacy_profile_never_downgrades_new_rules_and_refactor_covers_their_categories()
+    {
+        var root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "QualityGates.sln")))
+        {
+            root = Path.GetDirectoryName(root)!;
+        }
+
+        var dir = Path.Combine(root, "src", "KirillMaster.QualityGates.Build", "buildTransitive");
+        var legacy = File.ReadAllText(Path.Combine(dir, "quality.legacy.globalconfig"));
+        var refactor = File.ReadAllText(Path.Combine(dir, "quality.refactor.globalconfig"));
+
+        Assert.DoesNotMatch(@"QG01[3-5]\d\.severity = (suggestion|none|silent)", legacy);
+        Assert.DoesNotMatch(@"(CA1852|S109|S1075|S2360)\.severity = (suggestion|none|silent)", legacy);
+        Assert.Contains("category-QualityGates.Shape.severity = error", refactor, StringComparison.Ordinal);
+        Assert.Contains("category-QualityGates.NoHardcode.severity = error", refactor, StringComparison.Ordinal);
     }
 }
