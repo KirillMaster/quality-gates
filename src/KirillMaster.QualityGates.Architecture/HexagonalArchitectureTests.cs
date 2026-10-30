@@ -90,7 +90,13 @@ public abstract class HexagonalArchitectureTests
         if (ModuleRulesConfig is { } config)
         {
             var assemblies = Assemblies.ToArray();
-            var found = ModuleRules.All(TypeGraph.Build(ArchitectureRules.Load(assemblies), assemblies), config);
+            var graph = TypeGraph.Build(ArchitectureRules.Load(assemblies), assemblies);
+            var found = ModuleRules.All(graph, config);
+            if (!config.EnforceStableDependencies)
+            {
+                ReportWarnings(ModuleRules.StableDependencies(graph, config), config.BaselinePath);
+            }
+
             AssertNoNewViolations(found, config.BaselinePath, config.StrictFeatureIsolation ? ModuleRuleIds.FeatureIsolation : null, ModuleRules.ActiveRules(config));
         }
     }
@@ -102,7 +108,18 @@ public abstract class HexagonalArchitectureTests
         if (HexagonalRulesConfig is { } profile)
         {
             var assemblies = Assemblies.ToArray();
-            AssertNoNewViolations(HexagonalRules.All(TypeGraph.Build(ArchitectureRules.Load(assemblies), assemblies), profile), profile.Baseline, null, HexagonalRules.ActiveRules);
+            AssertNoNewViolations(HexagonalRules.All(TypeGraph.Build(ArchitectureRules.Load(assemblies), assemblies), profile), profile.Baseline, null, HexagonalRules.ActiveRulesFor(profile));
+        }
+    }
+
+    /// <summary>Warning-only findings (StableDependencies unless enforced) that are not in the baseline; writes to the standard error stream by default.</summary>
+    protected virtual void ReportWarnings(IReadOnlyList<RuleViolation> found, string baselinePath)
+    {
+        var root = RepositoryRoot;
+        var path = Path.IsPathRooted(baselinePath) || root is null ? baselinePath : Path.Combine(root, baselinePath);
+        foreach (var violation in RuleBaseline.FromFile(path).New(found))
+        {
+            Console.Error.WriteLine($"warning [{violation.Rule}] {violation.Key}#{violation.Measure} {violation.Message}");
         }
     }
 
