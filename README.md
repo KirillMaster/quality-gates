@@ -39,7 +39,7 @@ Property names are shared with the company package so one tool can drive both; t
 | `QualityGatesMode` | `adopt` (env `QUALITYGATES_MODE` when empty) | `adopt` compiles grandfathered suppressions; `refactor` does not compile them, forces `TreatWarningsAsErrors=true` and raises every `QG*` rule to error (see Refactor mode); the mode can also be set in the project body |
 | `QualityGatesRefactorScope` | empty (all projects) | `;` list of project-name prefixes (`Shop.Orders*;Shop.Billing`, blanks and spaces ignored, trailing `*` optional); projects outside the scope stay in `adopt` |
 | `EnforceCodeStyleInBuild`, `AnalysisLevel` | `true`, pinned by profile | defaults only; values set by the consumer win. `AnalysisLevel` is never `latest` so SDK upgrades do not change the rules |
-| `QualityGatesLayer` | derived | `core` (`*.Domain`, `*.Application`), `test` (`*.Tests`, relaxed test config), `adapter` |
+| `QualityGatesLayer` | derived | `core` (`*.Domain`, `*.Application`, `*.Core`, `*.Ports.Input`, `*.Ports.Output`), `test` (`*.Tests`, relaxed test config), `adapter` |
 | `QualityGatesBannedSymbols` | `true` | `false` drops `BannedSymbols.txt` |
 | `QualityGatesGlossary` | empty | path to a word list that must be named `glossary.txt` (one word per line or comma-separated, `#` comments); it is added as an AdditionalFile and activates QG0174 (unknown word). Without it QG0174 is silent |
 | `QualityGatesGrandfatheredDir` | `<repo>/quality/grandfathered/` | folder with `<Project>.GlobalSuppressions.cs` files compiled into the project |
