@@ -48,6 +48,15 @@ public sealed class ModulesConfig
     /// <summary>Maximum distinct other modules a Feature module may depend on.</summary>
     public int ModuleFanOutMax { get; set; } = 6;
 
+    /// <summary>StableDependencies is a warning (reported by the base test, never failing) until this is true; then new violations fail like the other rules.</summary>
+    public bool EnforceStableDependencies { get; set; }
+
+    /// <summary>Tolerated instability increase along a dependency (StableDependencies).</summary>
+    public double StableDependenciesEpsilon { get; set; } = 0.15;
+
+    /// <summary>Modules (either end) with fewer afferent plus efferent couplings are skipped (StableDependencies).</summary>
+    public int StableDependenciesMinCoupling { get; set; } = 4;
+
     /// <summary>Maximum types per Shared module; null disables SharedCap.</summary>
     public int? SharedMaxTypes { get; set; }
 
