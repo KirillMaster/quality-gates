@@ -20,6 +20,7 @@
     <QualityGatesGrandfatheredDir Condition="'$(QualityGatesGrandfatheredDir)' == ''">$([MSBuild]::EnsureTrailingSlash('$(QualityGatesRepoRoot)'))quality/grandfathered/</QualityGatesGrandfatheredDir>
   </PropertyGroup>
   <ItemGroup Condition="'$(QualityGatesEnabled)' != 'false'">
+    <CompilerVisibleProperty Include="QualityGatesLayer" />
     <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)quality.globalconfig" />
     <GlobalAnalyzerConfigFiles Condition="'$(QualityGatesProfile)' == 'legacy-ratchet'" Include="$(MSBuildThisFileDirectory)quality.legacy.globalconfig" />
     <GlobalAnalyzerConfigFiles Condition="'$(QualityGatesLayer)' == 'test'" Include="$(MSBuildThisFileDirectory)quality.tests.globalconfig" />

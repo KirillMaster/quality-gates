@@ -74,3 +74,30 @@ Skipped/ignored test without an issue reference.
 `DateTime.Now`, `Thread.Sleep`, `new Random()` in tests. Thresholded by nothing; use `TimeProvider`/seeds.
 ### qg0042
 Too many asserts. `qg_max_asserts` (5).
+
+## Results and error flow (QG0100-QG0111)
+Rules for the `KirillMaster.QualityGates.Results` style (early returns, no fluent railways). All default to warning. Layer comes from namespace/assembly segments (rightmost match wins), falling back to the `QualityGatesLayer` MSBuild property (compiler-visible as `build_property.QualityGatesLayer`); the `test` layer is skipped. Keys: `qg_core_namespace_segments` (`Core,Domain,Application,Ports`), `qg_adapter_namespace_segments` (`Adapters,Adapter,Runner,Runners,Infrastructure`), `qg_test_namespace_segments`, `qg_result_type_names` (`Result`, matched by simple name, arity 0 or 1), `qg_error_type_names` (`Error`).
+### qg0100
+X2. A public endpoint method (type derives `ControllerBase`, has `[ApiController]`, or ends with `qg_endpoint_type_suffixes` = `Controller,Endpoint,Endpoints`) or a `MapGet/MapPost/MapPut/MapDelete/MapPatch/MapMethods` lambda returns a Result (also inside `Task`). Return `result.ToHttpResult()` instead.
+### qg0101
+C29 NoCatchInCore. Any `catch` in a core-layer type, except exception-handler boundaries (`IExceptionHandler`, `*ExceptionHandler`, `*Middleware`, `*ExceptionFilter` via `qg_exception_boundary_suffixes`, composition root).
+### qg0102
+X3. Outside core: unfiltered `catch`, `catch (Exception)` or `catch (SystemException)` without a `throw;`. Catch the specific exception and convert it to an `Error`.
+### qg0103
+X4. `Task.Delay` / `Thread.Sleep` inside a catch block or a loop. Exempt: loops conditioned on `IsCancellationRequested`, `IHostedService`/`BackgroundService` types, composition root.
+### qg0104
+X6. `OperationCanceledException`/`TaskCanceledException` caught outside a boundary, hosted service or a `throw;` rethrow.
+### qg0105
+X7. Any `catch` in a type implementing a consumer interface (`qg_consumer_interfaces`, default `MassTransit.IConsumer`; simple or namespace-qualified names).
+### qg0106
+X8. A returned Result is discarded: expression statement (also `await`), `_ = Call()`, void-lambda body, or a Result local that is never referenced.
+### qg0107
+X9. `new Error(...)` or a static `Error` factory called with a literal or interpolated `code` outside a static class ending with `qg_error_catalog_suffixes` (`Errors`).
+### qg0108
+X10. A method returning a Result (or `Task<Result>`) throws. Allowed: `qg_result_allowed_throws` (`ArgumentNullException,ArgumentException,ArgumentOutOfRangeException,UnreachableException`), `ThrowIf*` guards, bare `throw;`, lambdas.
+### qg0109
+Z4. A source-declared Result type has `IsSuccess`/`IsFailure` without `[MemberNotNullWhen]` while exposing `Value`/`Error`; unchecked access then compiles silently.
+### qg0110
+Z4. `ProblemDetails.Detail` or `Problem(detail: ...)` is built from an exception (`Message`, `StackTrace`, `ToString()`, interpolation).
+### qg0111
+NoFluentResultChains. `Bind/Map/Then/MapError/Tap/Ensure/OnSuccess/OnFailure` (+`Async`; `qg_fluent_result_methods`) on a Result or returning one, and LINQ query syntax over a Result.
