@@ -16,7 +16,7 @@ public sealed class IdentifierAnalyzer : QgAnalyzer
     protected override void Register(AnalysisContext context) =>
         context.RegisterCompilationStartAction(start =>
         {
-            var state = new State(start.Options);
+            var state = new State(new CompilationConfig(start.Options, start.Compilation));
             start.RegisterSymbolAction(state.AnalyzeSymbol, SymbolKind.NamedType, SymbolKind.Method, SymbolKind.Property, SymbolKind.Field);
             start.RegisterSyntaxNodeAction(
                 state.AnalyzeLocal,
@@ -26,14 +26,15 @@ public sealed class IdentifierAnalyzer : QgAnalyzer
 
     private sealed class State
     {
-        private readonly AnalyzerOptions _options;
+        private readonly CompilationConfig _config;
+        private readonly ConcurrentDictionary<IMethodSymbol, bool> _tests = new(SymbolEqualityComparer.Default);
         private readonly ImmutableHashSet<string>? _glossary;
         private readonly ConcurrentDictionary<INamedTypeSymbol, ImmutableHashSet<ISymbol>> _implemented = new(SymbolEqualityComparer.Default);
 
-        public State(AnalyzerOptions options)
+        public State(CompilationConfig config)
         {
-            _options = options;
-            _glossary = LoadGlossary(options);
+            _config = config;
+            _glossary = LoadGlossary(config.Options);
         }
 
         public void AnalyzeSymbol(SymbolAnalysisContext context)
@@ -53,7 +54,7 @@ public sealed class IdentifierAnalyzer : QgAnalyzer
                 IMethodSymbol m => m.ReturnType,
                 _ => null,
             };
-            var isTest = symbol is IMethodSymbol method && Symbols.IsTestMethod(method);
+            var isTest = symbol is IMethodSymbol method && _tests.GetOrAdd(method, Symbols.IsTestMethod) || IsContract(symbol);
             Check(context.ReportDiagnostic, symbol.Name, symbol.Locations[0], tree, type, isMember: true, isTest);
             if (symbol is IMethodSymbol { MethodKind: MethodKind.Ordinary } ordinary)
             {
@@ -106,8 +107,7 @@ public sealed class IdentifierAnalyzer : QgAnalyzer
             var tokens = Tokens.Split(name);
             CheckUnknownWord(report, name, location, tokens);
             if (!isTest && DigitTail.IsMatch(name)
-                && !Thresholds.GetList(_options, tree, "qg_digit_suffix_allowed", ReadabilityDescriptors.DigitSuffixAllowed)
-                    .Any(a => name.EndsWith(a, StringComparison.OrdinalIgnoreCase)))
+                && !IsAllowedDigitName(name, _config.List(tree, "qg_digit_suffix_allowed", ReadabilityDescriptors.DigitSuffixAllowed)))
             {
                 report(Diagnostic.Create(ReadabilityDescriptors.DigitSuffix, location, name));
             }
@@ -119,12 +119,37 @@ public sealed class IdentifierAnalyzer : QgAnalyzer
 
             var unwrapped = Symbols.UnwrapTask(type);
             if (isMember && !isTest && unwrapped.SpecialType == SpecialType.System_Boolean
-                && !Thresholds.GetList(_options, tree, "qg_bool_name_prefixes", ReadabilityDescriptors.BoolPrefixes).Contains(tokens[0]))
+                && !_config.List(tree, "qg_bool_name_prefixes", ReadabilityDescriptors.BoolPrefixes).Contains(tokens[0]))
             {
                 report(Diagnostic.Create(ReadabilityDescriptors.BoolWithoutPrefix, location, name));
             }
 
             CheckTypeLie(report, name, location, tokens, type);
+        }
+
+        private static bool IsAllowedDigitName(string name, ImmutableHashSet<string> allowed)
+        {
+            var stem = name.TrimEnd('0', '1', '2', '3', '4', '5', '6', '7', '8', '9');
+            return allowed.Any(a => name.EndsWith(a, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(stem, a, StringComparison.OrdinalIgnoreCase) || stem.EndsWith(a, StringComparison.Ordinal));
+        }
+
+        private static bool IsContract(ISymbol symbol)
+        {
+            if (symbol is not (IPropertySymbol or IFieldSymbol))
+            {
+                return false;
+            }
+
+            if (symbol.GetAttributes().Any(a => a.AttributeClass?.Name is "ColumnAttribute" or "JsonPropertyNameAttribute" or "JsonPropertyAttribute"
+                or "DataMemberAttribute" or "XmlElementAttribute" or "XmlAttributeAttribute" or "KeyAttribute" or "FromQueryAttribute" or "BsonElementAttribute"))
+            {
+                return true;
+            }
+
+            var owner = symbol.ContainingType;
+            return owner.DeclaredAccessibility == Accessibility.Public
+                && (owner.IsRecord || !owner.GetMembers().OfType<IMethodSymbol>().Any(m => m.MethodKind == MethodKind.Ordinary && !m.IsImplicitlyDeclared));
         }
 
         private void CheckUnknownWord(Action<Diagnostic> report, string name, Location location, string[] tokens)
@@ -149,9 +174,10 @@ public sealed class IdentifierAnalyzer : QgAnalyzer
             }
 
             var last = tokens[tokens.Length - 1];
-            var lie = last switch
+            var isSystem = type is IArrayTypeSymbol || type.ContainingNamespace?.ToDisplayString().Split('.')[0] == "System";
+            var lie = !isSystem ? null : last switch
             {
-                "List" or "Array" or "Collection" or "Set" or "Queue" or "Stack" when !Symbols.IsCollection(type) => "a collection",
+                "List" when !Symbols.IsCollection(type) => "a collection",
                 "Dictionary" when !IsDictionary(type) => "a dictionary",
                 _ => null,
             };

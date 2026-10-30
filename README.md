@@ -34,6 +34,7 @@ Property names are shared with the company package so one tool can drive both; t
 | `EnforceCodeStyleInBuild`, `AnalysisLevel` | `true`, pinned by profile | defaults only; values set by the consumer win. `AnalysisLevel` is never `latest` so SDK upgrades do not change the rules |
 | `QualityGatesLayer` | derived | `core` (`*.Domain`, `*.Application`), `test` (`*.Tests`, relaxed test config), `adapter` |
 | `QualityGatesBannedSymbols` | `true` | `false` drops `BannedSymbols.txt` |
+| `QualityGatesGlossary` | empty | path to a word list that must be named `glossary.txt` (one word per line or comma-separated, `#` comments); it is added as an AdditionalFile and activates QG0174 (unknown word). Without it QG0174 is silent |
 | `QualityGatesGrandfatheredDir` | `<repo>/quality/grandfathered/` | folder with `<Project>.GlobalSuppressions.cs` files compiled into the project |
 
 NuGet audit is not part of the package props (restore does not see them). Set it in `Directory.Build.props`:
@@ -107,7 +108,7 @@ Set `QualityGatesProfile=legacy-ratchet`, put existing violations into `quality/
 
 1. Stops compiling `quality/grandfathered/*.GlobalSuppressions.cs`, so every grandfathered violation is an error again.
 2. Sets `TreatWarningsAsErrors=true`, even when the project sets `false`.
-3. Adds `quality.refactor.globalconfig` (`global_level = 100`), which sets all `QualityGates.*` analyzer categories (Design, Errors, Hygiene, Naming, Size, Testing) to error. This also enables the opt-in QG0031/QG0032 and overrides the legacy-ratchet suggestions for QG0033-QG0036, QG0050, QG0051. Curated third-party analyzers and `AnalysisLevel` are not changed (they already follow the profile); an `.editorconfig` entry still wins over the globalconfig.
+3. Adds `quality.refactor.globalconfig` (`global_level = 100`), which sets all `QualityGates.*` analyzer categories (Abstraction, Design, Errors, Hygiene, Naming, Size, Testing) to error. This also enables the opt-in QG0031/QG0032 and overrides the legacy-ratchet suggestions for QG0033-QG0036, QG0050, QG0051. Curated third-party analyzers and `AnalysisLevel` are not changed (they already follow the profile); an `.editorconfig` entry still wins over the globalconfig.
 
 Use `QualityGatesRefactorScope` to work on a few projects at a time; the rest keep adopt behaviour. Mode and scope are resolved in the package `.targets`, and `TreatWarningsAsErrors` is applied by the `QualityGatesResolveMode` target before compilation.
 

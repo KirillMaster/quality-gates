@@ -13,19 +13,14 @@ internal static class Settings
     public static bool IsCore(AnalyzerOptions options, SyntaxTree tree, INamedTypeSymbol type)
     {
         var layer = Layer(options);
-        if (string.Equals(layer, "test", StringComparison.OrdinalIgnoreCase))
+        if (layer.Length > 0)
         {
-            return false;
-        }
-
-        if (string.Equals(layer, "core", StringComparison.OrdinalIgnoreCase))
-        {
-            return true;
+            return string.Equals(layer, "core", StringComparison.OrdinalIgnoreCase);
         }
 
         var segments = Thresholds.GetList(options, tree, "qg_core_namespace_segments", ReadabilityDescriptors.CoreNamespaceSegments);
         var parts = type.ContainingNamespace.ToDisplayString().Split('.');
-        return parts.Any(segments.Contains) && !parts.Any(p => p is "Ports" or "Adapters" or "Runner" or "Tests");
+        return parts.Any(segments.Contains) && !parts.Any(p => p is "Ports" or "Adapters" or "Runner" or "Tests" or "UnitTests" or "Specs");
     }
 }
 

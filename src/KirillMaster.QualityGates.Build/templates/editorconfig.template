@@ -44,6 +44,8 @@ indent_size = 2
 # qg_core_namespace_segments = Core,Domain,Application
 # qg_composer_percent = 80
 # qg_worker_percent = 20
+# QG0174 needs a glossary: set <QualityGatesGlossary>path/to/glossary.txt</QualityGatesGlossary> (file name must be glossary.txt)
+# QualityGatesLayer=core (project property) marks Core projects for QG0184/QG0187; with no layer set, namespaces from qg_core_namespace_segments are used
 # QG0170-QG0187 (readability batch): warning by default; see docs/analyzers.md
 
 # QG0007, QG0008, QG0033-QG0036, QG0050, QG0051: warning in strict; legacy-ratchet makes QG0033-QG0036, QG0050, QG0051 suggestions

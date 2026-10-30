@@ -23,12 +23,13 @@ public sealed class TestQualityAnalyzer : QgAnalyzer
             }
 
             var assembly = start.Compilation.Assembly;
-            start.RegisterSymbolAction(AnalyzeTestMethod, SymbolKind.Method);
-            start.RegisterOperationAction(c => AnalyzeInvocation(c, assembly), OperationKind.Invocation);
-            start.RegisterOperationAction(c => AnalyzeCreation(c, assembly), OperationKind.ObjectCreation);
+            var config = new CompilationConfig(start.Options, start.Compilation);
+            start.RegisterSymbolAction(c => AnalyzeTestMethod(c, config), SymbolKind.Method);
+            start.RegisterOperationAction(c => AnalyzeInvocation(c, assembly, config), OperationKind.Invocation);
+            start.RegisterOperationAction(c => AnalyzeCreation(c, assembly, config), OperationKind.ObjectCreation);
         });
 
-    private static void AnalyzeTestMethod(SymbolAnalysisContext context)
+    private static void AnalyzeTestMethod(SymbolAnalysisContext context, CompilationConfig config)
     {
         var method = (IMethodSymbol)context.Symbol;
         if (!Symbols.IsTestMethod(method) || method.Locations.Length == 0 || method.Locations[0].SourceTree is not { } tree)
@@ -44,7 +45,7 @@ public sealed class TestQualityAnalyzer : QgAnalyzer
                 continue;
             }
 
-            CheckLogic(context, method, declaration, tree);
+            CheckLogic(context, method, declaration, tree, config);
             CheckArrange(context, method, declaration, tree);
         }
     }
@@ -72,9 +73,9 @@ public sealed class TestQualityAnalyzer : QgAnalyzer
         }
     }
 
-    private static void CheckLogic(SymbolAnalysisContext context, IMethodSymbol method, MethodDeclarationSyntax declaration, SyntaxTree tree)
+    private static void CheckLogic(SymbolAnalysisContext context, IMethodSymbol method, MethodDeclarationSyntax declaration, SyntaxTree tree, CompilationConfig config)
     {
-        var exempt = Thresholds.GetList(context.Options, tree, "qg_test_logic_exempt_assemblies", ReadabilityDescriptors.TestLogicExemptAssemblies);
+        var exempt = config.List(tree, "qg_test_logic_exempt_assemblies", ReadabilityDescriptors.TestLogicExemptAssemblies);
         var assembly = method.ContainingAssembly.Name;
         if (exempt.Any(e => assembly.IndexOf(e, StringComparison.OrdinalIgnoreCase) >= 0))
         {
@@ -130,7 +131,7 @@ public sealed class TestQualityAnalyzer : QgAnalyzer
             _ => false,
         });
 
-    private static void AnalyzeInvocation(OperationAnalysisContext context, IAssemblySymbol assembly)
+    private static void AnalyzeInvocation(OperationAnalysisContext context, IAssemblySymbol assembly, CompilationConfig config)
     {
         var method = ((IInvocationOperation)context.Operation).TargetMethod;
         var owner = method.ContainingType.ToDisplayString();
@@ -139,31 +140,31 @@ public sealed class TestQualityAnalyzer : QgAnalyzer
             || owner == "Moq.Mock" && method.Name == "Of";
         if (isFactory && method.TypeArguments.Length > 0)
         {
-            Check(context, method.TypeArguments[0], assembly, context.Operation.Syntax);
+            Check(context, method.TypeArguments[0], assembly, context.Operation.Syntax, config);
         }
     }
 
-    private static void AnalyzeCreation(OperationAnalysisContext context, IAssemblySymbol assembly)
+    private static void AnalyzeCreation(OperationAnalysisContext context, IAssemblySymbol assembly, CompilationConfig config)
     {
         var creation = (IObjectCreationOperation)context.Operation;
         if (creation.Type is INamedTypeSymbol { IsGenericType: true } type && type.ConstructedFrom.ToDisplayString() == "Moq.Mock<T>")
         {
-            Check(context, type.TypeArguments[0], assembly, creation.Syntax);
+            Check(context, type.TypeArguments[0], assembly, creation.Syntax, config);
         }
     }
 
-    private static void Check(OperationAnalysisContext context, ITypeSymbol mocked, IAssemblySymbol assembly, SyntaxNode syntax)
+    private static void Check(OperationAnalysisContext context, ITypeSymbol mocked, IAssemblySymbol assembly, SyntaxNode syntax, CompilationConfig config)
     {
         var tree = syntax.SyntaxTree;
         var display = mocked.OriginalDefinition.ContainingNamespace + "." + mocked.Name;
-        var allowed = Thresholds.GetList(context.Options, tree, "qg_allowed_mock_types", ReadabilityDescriptors.AllowedMockTypes);
+        var allowed = config.List(tree, "qg_allowed_mock_types", ReadabilityDescriptors.AllowedMockTypes);
         if (allowed.Any(a => display.StartsWith(a, StringComparison.Ordinal)))
         {
             return;
         }
 
-        var segments = Thresholds.GetList(context.Options, tree, "qg_port_namespace_segments", ReadabilityDescriptors.PortNamespaceSegments);
-        var prefixes = Thresholds.GetList(context.Options, tree, "qg_own_assembly_prefixes", assembly.Name.Split('.')[0]);
+        var segments = config.List(tree, "qg_port_namespace_segments", ReadabilityDescriptors.PortNamespaceSegments);
+        var prefixes = config.List(tree, "qg_own_assembly_prefixes", assembly.Name.Split('.')[0]);
         var isOwn = mocked.ContainingAssembly is { } owner && (SymbolEqualityComparer.Default.Equals(owner, assembly)
             || prefixes.Any(p => owner.Name.StartsWith(p, StringComparison.OrdinalIgnoreCase)));
         var isPort = mocked.TypeKind == TypeKind.Interface && isOwn

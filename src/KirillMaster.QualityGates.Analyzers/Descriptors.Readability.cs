@@ -15,7 +15,7 @@ public static class ReadabilityDescriptors
     public const string CoreNamespaceSegments = "Core,Domain,Application";
     public const string InputPortNamespace = "Ports.Input";
     public const string BoolPrefixes = "Is,Has,Can,Should,Are,Was,Will,Did,Does,Must,Allow,Allows,Supports,Contains,Exists,Equals,Matches,Try,Starts,Ends,Needs,Requires";
-    public const string DigitSuffixAllowed = "Sha1,Sha256,Sha384,Sha512,Md5,Base64,Utf8,Utf16,Utf32,Int16,Int32,Int64,Vector2,Vector3,Ipv4,Ipv6,X509,Oauth2,Http2,Http3,Rs256,Es256,Crc32,Win32,S3,Ec2,B2b,B2c";
+    public const string DigitSuffixAllowed = "Sha1,Sha256,Sha384,Sha512,Md5,Base64,Utf8,Utf16,Utf32,Int16,Int32,Int64,Vector2,Vector3,Ipv4,Ipv6,X509,Oauth2,Http2,Http3,Rs256,Es256,Crc32,Win32,S3,Ec2,B2b,B2c,Line,Address,Street,Phone,Tls,Sha,Utf,Base,Int,Http";
     public const string TempMarkers = "FIXME,HACK,XXX,temporary,temporarily,workaround,for now,remove after,remove once,remove when,quick fix,kludge";
     public const string DictionaryFileName = "glossary.txt";
 

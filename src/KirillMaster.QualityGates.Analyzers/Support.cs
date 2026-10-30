@@ -142,7 +142,7 @@ internal static class LogNames
 
 internal static class Symbols
 {
-    public static readonly Regex IssueReference = new(@"#\d+|https?://", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
+    public static readonly Regex IssueReference = new(@"#\d+|https?://|\b[A-Z][A-Z0-9]+-\d+\b", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
 
     private static readonly string[] TestAttributes =
     [

@@ -76,7 +76,7 @@ Skipped/ignored test without an issue reference.
 Too many asserts. `qg_max_asserts` (5).
 
 ## Readability (QG0170-QG0187)
-All rules default to warning; the consumer escalates. Role detection: `QualityGatesLayer` (`core`/`adapter`/`test`, exposed as the compiler-visible property `build_property.QualityGatesLayer`) or, when it is not `core`/`test`, namespace segments from `qg_core_namespace_segments` (`Core,Domain,Application`; namespaces with `Ports`, `Adapters`, `Runner` or `Tests` segments never count as core).
+All rules default to warning; the consumer escalates. Role detection: `QualityGatesLayer` (`core`/`adapter`/`test`, exposed as the compiler-visible property `build_property.QualityGatesLayer`). When it is set, only `core` counts as Core (the Build package derives it from the project name, so set `QualityGatesLayer=core` explicitly for projects such as `*.Core`). Only when the property is empty (analyzer used without the Build package) namespace segments from `qg_core_namespace_segments` (`Core,Domain,Application`) decide; namespaces with `Ports`, `Adapters`, `Runner`, `Tests`, `UnitTests` or `Specs` segments never count as core. QG0184-QG0187 are skipped in test compilations. QG0174 needs `glossary.txt` wired via `QualityGatesGlossary` (README).
 
 ### qg0170
 T1: `if`/`for`/`foreach`/`while`/`do`/`switch` inside a test method (reported once, at the first construct). Use `[Theory]` data or a helper. `qg_test_logic_exempt_assemblies` (`ArchitectureTests,IntegrationTests`, substring match on the assembly name).
@@ -91,21 +91,21 @@ N3: identifier token (types, members, parameters, locals; acronyms and tokens up
 ### qg0175
 R4: `#region` directive.
 ### qg0176
-Z8: author byline or change-log comment (`Author:`, `created by`, `@author`, `JD 2019-03-04`). XmlDoc is not inspected. TODO hygiene stays in QG0013 and QG0014.
+Z8: author byline comment (`Author:`, `created by`, `@author`, uppercase initials plus date such as `JD 2019-03-04`). XmlDoc is not inspected. TODO hygiene stays in QG0013 and QG0014.
 ### qg0177
 Z15: `#pragma warning disable` without a trailing comment, or `[SuppressMessage]` without a non-empty `Justification` (the `<Pending>` placeholder counts as empty).
 ### qg0178
 G4: method with cognitive complexity above `qg_why_comment_cognitive_threshold` (10, below the QG0007 limit so the comment is demanded before the method becomes an error) and no plain (non-XmlDoc) comment before the method, after its opening brace or before its first statement. Test methods are skipped.
 ### qg0179
-K7: temporary-fix marker in a comment (`qg_temp_markers`: `FIXME,HACK,XXX,temporary,temporarily,workaround,for now,remove after,remove once,remove when,quick fix,kludge`) or any `#pragma warning disable`. `TODO` stays in QG0013. The rule is static; making it an error only for bug-fix pull requests is done by the CI changed-lines filter with the PR kind.
+K7: temporary-fix marker (whole words; `FIXME`/`HACK`/`XXX` pass when the comment has `#123`, a URL or a Jira-like key; `temporary file/folder/directory` is ignored) in a comment, `[Obsolete]` without a ticket in its message (`qg_temp_markers`: `FIXME,HACK,XXX,temporary,temporarily,workaround,for now,remove after,remove once,remove when,quick fix,kludge`) or any `#pragma warning disable`. `TODO` stays in QG0013 (which now also accepts Jira-like keys). The rule is static; making it an error only for bug-fix pull requests is done by the CI changed-lines filter with the PR kind.
 ### qg0180
 Z10: boolean property, field or method whose first name token is not in `qg_bool_name_prefixes` (`Is,Has,Can,Should,Are,Was,Will,Did,Does,Must,Allow,Allows,Supports,Contains,Exists,Equals,Matches,Try,Starts,Ends,Needs,Requires`; setting replaces the list). Test methods, overrides and interface implementations are skipped.
 ### qg0181
-Z10: identifier ending in a digit after a letter (`user1`). `qg_digit_suffix_allowed` lists legitimate endings (`Sha256`, `Utf8`, `Base64`, ...). Test method names are skipped.
+Z10: identifier ending in a digit after a letter (`user1`). `qg_digit_suffix_allowed` lists legitimate endings (`Sha256`, `Utf8`, `Base64`, ...). Test method names, serialization/persistence-attributed members and members of public record/data-only types are skipped; QG0180 skips the same members.
 ### qg0182
 Z10: two parameters/locals of one method (names of at least six characters) that differ only by case or by one character. Singular/plural pairs and digit-suffixed pairs are not reported.
 ### qg0183
-Z10: name lies about its type: `...List/Array/Collection/Set/Queue/Stack` on a non-collection, `...Dictionary` on a non-dictionary, `Is/Has/Can...` on a non-boolean.
+Z10: name lies about its type: `...List` on a non-collection or `...Dictionary` on a non-dictionary (only System types),  `Is/Has/Can...` on a non-boolean.
 ### qg0184
 L6: composer-versus-worker mix in a Core method. Effect statements are counted after flattening `if`/`try`/`using`/`lock`; guard clauses (`if (...) return/throw`) are neutral; a loop or `switch` is one low-level statement. A statement is low-level when it has a loop, `switch`, indexer, arithmetic, string operation, regex or LINQ with a lambda; it is a composer step when it calls own-assembly code and has no low-level element. Reported when own steps >= `qg_min_own_statements` (3), low-level steps >= `qg_min_low_statements` (3) and the composer share is strictly between `qg_worker_percent` (20) and `qg_composer_percent` (80). Heuristic; measure before escalating.
 ### qg0185
