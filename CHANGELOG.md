@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1
+
+- Analyzers: QG0190 (Z5 ExhaustiveClosed): a catch-all arm on a `switch` over `bool`, bool tuples or a closed sealed hierarchy must throw. Enums stay with QG0022 (distinct case, no duplicate reports). Warning by default; added to the strict and legacy-ratchet globalconfigs.
+- Docs: QG0187 (Demeter) stays a warning; QG0022/QG0190 scope documented.
+
 ## 0.4.0
 
 - Analyzers: QG0188 (`lock` in Core) and QG0189 (static non-readonly field or static readonly mutable collection in Core), Z1 NoSharedMutableState; warning by default, Core layer only, test/excluded assemblies skipped, no diagnostics on symbols without source location.
