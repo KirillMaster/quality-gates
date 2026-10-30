@@ -442,6 +442,14 @@ public sealed class ShapeTests
         Assert.DoesNotContain("QG0130", await Ids("namespace App.Ports.Output { public interface IRepo { void Get(string aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab); } }", ("qg_id_name_pattern", "^(a+)+$")));
 
     [Fact]
+    public async Task Top_level_statements_do_not_crash_the_usage_analyzer()
+    {
+        var ids = await Ids("var builder = new object(); System.Console.WriteLine(builder); public partial class Program { }");
+
+        Assert.DoesNotContain("AD0001", ids);
+    }
+
+    [Fact]
     public void Legacy_profile_never_downgrades_new_rules_and_refactor_covers_their_categories()
     {
         var root = AppContext.BaseDirectory;

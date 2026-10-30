@@ -162,9 +162,9 @@ public sealed class UsageAnalyzer : QgAnalyzer
         var pattern = Patterns.Option(context.Options, tree, "qg_money_name_pattern", ShapeDescriptors.MoneyNamePattern);
         var candidates = symbol switch
         {
-            IPropertySymbol p => new[] { (p.Name, p.Type, p.Locations[0]) },
-            IFieldSymbol f => new[] { (f.Name, f.Type, f.Locations[0]) },
-            IMethodSymbol m when m.MethodKind == MethodKind.Ordinary => m.Parameters.Select(p => (p.Name, p.Type, p.Locations[0])).ToArray(),
+            IPropertySymbol p when p.Locations.Length > 0 => new[] { (p.Name, p.Type, p.Locations[0]) },
+            IFieldSymbol f when f.Locations.Length > 0 => new[] { (f.Name, f.Type, f.Locations[0]) },
+            IMethodSymbol m when m.MethodKind == MethodKind.Ordinary => m.Parameters.Where(p => p.Locations.Length > 0).Select(p => (p.Name, p.Type, p.Locations[0])).ToArray(),
             _ => Array.Empty<(string, ITypeSymbol, Location)>(),
         };
         foreach (var (name, type, location) in candidates)
