@@ -1,6 +1,6 @@
 namespace KirillMaster.QualityGates.Analyzers;
 
-public static class Descriptors
+public static partial class Descriptors
 {
     public const int MaxTypeLines = 300;
     public const int MaxMethodLines = 60;

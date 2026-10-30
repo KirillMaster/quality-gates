@@ -61,7 +61,7 @@ public sealed class TypeShapeAnalyzer : QgAnalyzer
             }
         }
 
-        foreach (var type in types.Where(t => t.TypeKind == TypeKind.Class && (t.DeclaredAccessibility != Accessibility.Public || roles.CoreLayer)))
+        foreach (var type in types.Where(t => t.TypeKind == TypeKind.Class && roles.CoreLayer))
         {
             if (IsSealable(type) && !derived.Contains(type.OriginalDefinition))
             {

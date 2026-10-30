@@ -21,7 +21,7 @@ public sealed class ShapeTests
         """;
 
     private static Task<string[]> Ids(string source, params (string Key, string Value)[] config) =>
-        AnalyzerHarness.DiagnoseWithConfigAsync(source, config);
+        AnalyzerHarness.DiagnoseShapeAsync(source, "Sample", config);
 
     [Fact]
     public async Task Port_primitive_id_and_money_are_reported()
@@ -119,12 +119,13 @@ public sealed class ShapeTests
     {
         var core = ("build_property.QualityGatesLayer", "core");
 
-        Assert.Contains("QG0132", await Ids("namespace App { internal class Store { } }"));
+        Assert.Contains("QG0132", await Ids("namespace App { internal class Store { } }", core));
+        Assert.DoesNotContain("QG0132", await Ids("namespace App { internal class Store { } }"));
         Assert.Contains("QG0132", await Ids("namespace App { public class Store { } }", core));
         Assert.DoesNotContain("QG0132", await Ids("namespace App { public class Store { } }"));
         Assert.DoesNotContain("QG0132", await Ids("namespace App { public sealed class Store { } }", core));
-        Assert.DoesNotContain("QG0132", await Ids("namespace App { internal class Store { } internal sealed class Derived : Store { } }"));
-        Assert.DoesNotContain("QG0132", await Ids("namespace App { internal class Store { public virtual void Run() { } } }"));
+        Assert.DoesNotContain("QG0132", await Ids("namespace App { internal class Store { } internal sealed class Derived : Store { } }", core));
+        Assert.DoesNotContain("QG0132", await Ids("namespace App { internal class Store { public virtual void Run() { } } }", core));
     }
 
     [Fact]
@@ -330,7 +331,7 @@ public sealed class ShapeTests
         const string Source = "namespace App { public enum E { A = 5 } [System.Obsolete(\"x\", false)] public sealed class S { [System.ComponentModel.DefaultValue(7)] public int A { get; } public int B() => 42; } }";
 
         Assert.DoesNotContain("QG0150", await Ids(Source.Replace("public int B() => 42;", string.Empty, StringComparison.Ordinal)));
-        Assert.DoesNotContain("QG0150", await AnalyzerHarness.DiagnoseInAssemblyAsync(Source, "App.CompositionRoot"));
+        Assert.DoesNotContain("QG0150", await AnalyzerHarness.DiagnoseShapeAsync(Source, "App.CompositionRoot"));
         Assert.DoesNotContain("QG0150", await Ids(Source, ("build_property.QualityGatesLayer", "test")));
     }
 
@@ -398,10 +399,10 @@ public sealed class ShapeTests
         const string Common = "namespace App.Billing { public sealed class P { public int Show(App.Common.Shared s) => s switch { App.Common.Shared.A => 1, _ => throw new System.ArgumentException() }; } }";
         const string Controller = "namespace App.Billing.Controllers { public sealed class P { public int Show(App.Orders.Model.Status s) => s switch { App.Orders.Model.Status.New => 1, _ => throw new System.ArgumentException() }; } }";
 
-        Assert.DoesNotContain("QG0138", await AnalyzerHarness.DiagnoseInAssemblyAsync(Enum + Same, "App"));
-        Assert.Contains("QG0138", await AnalyzerHarness.DiagnoseInAssemblyAsync(Enum + Other, "App"));
-        Assert.DoesNotContain("QG0138", await AnalyzerHarness.DiagnoseInAssemblyAsync(Enum + Common, "App"));
-        Assert.DoesNotContain("QG0138", await AnalyzerHarness.DiagnoseInAssemblyAsync(Enum + Controller, "App"));
+        Assert.DoesNotContain("QG0138", await AnalyzerHarness.DiagnoseShapeAsync(Enum + Same, "App"));
+        Assert.Contains("QG0138", await AnalyzerHarness.DiagnoseShapeAsync(Enum + Other, "App"));
+        Assert.DoesNotContain("QG0138", await AnalyzerHarness.DiagnoseShapeAsync(Enum + Common, "App"));
+        Assert.DoesNotContain("QG0138", await AnalyzerHarness.DiagnoseShapeAsync(Enum + Controller, "App"));
     }
 
     [Fact]

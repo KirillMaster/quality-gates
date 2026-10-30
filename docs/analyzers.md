@@ -92,7 +92,7 @@ Port method parameter that is a primitive id (`string/int/long/Guid` named `id`,
 ### qg0131
 Only with `QualityGatesLayer=core`: public type (outside ports and contracts) that is not reachable from a port signature (transitively through public members, base types, interfaces). DI extension classes (extension on `IServiceCollection`) and `Program` are exempt (H3).
 ### qg0132
-Non-public class (or any class when `QualityGatesLayer=core`) that is not sealed/abstract/static, has no derived type in the compilation and no virtual/abstract/protected members. Public classes elsewhere are not reported because cross-assembly inheritance is unknown (H3).
+Only with `QualityGatesLayer=core`: class that is not sealed/abstract/static, has no derived type in the compilation and no virtual/abstract/protected members. Other layers are not reported: internal types are covered by CA1852 and cross-assembly inheritance of public types is unknown (H3).
 ### qg0133
 Model type with a public setter (`set`, not `init`) or a public non-readonly field (H4).
 ### qg0134
@@ -133,3 +133,29 @@ String literal that is a URL (`scheme://...`), IPv4 address, `localhost` or a lo
 The `Invariant` attribute is shipped source-only by the Build package (internal `KirillMaster.QualityGates.InvariantAttribute` and `InvariantKind`, `using KirillMaster.QualityGates;`); set `QualityGatesInvariantAttribute=false` to supply your own (matched by name `Invariant`/`InvariantAttribute`).
 
 `quality.globalconfig` also enables CA1852 (seal internal types), S109 (magic numbers), S1075 (hardcoded URIs) and S2360 (optional parameters, H10) as warnings; `quality.legacy.globalconfig` keeps them (and QG0130-QG0152) at warning; `quality.refactor.globalconfig` raises the `Shape` and `NoHardcode` categories to error.
+## Results and error flow (QG0100-QG0111)
+Rules for the `KirillMaster.QualityGates.Results` style (early returns, no fluent railways). All default to warning. Layer comes from namespace/assembly segments (rightmost match wins), falling back to the `QualityGatesLayer` MSBuild property (compiler-visible as `build_property.QualityGatesLayer`); the `test` layer is skipped. Keys: `qg_core_namespace_segments` (`Core,Domain,Application,Ports`), `qg_adapter_namespace_segments` (`Adapters,Adapter,Runner,Runners,Infrastructure`), `qg_test_namespace_segments`, `qg_result_type_names` / `qg_error_type_names` (comma list of full type names ADDED to the defaults `KirillMaster.QualityGates.Results.Result`/`Result<T>` and `...Error`; same-named foreign types are ignored). Severity: strict profile makes QG0106 and QG0108 errors, everything else in this section is a warning in every profile (legacy-ratchet: all warnings).
+### qg0100
+X2. A public endpoint method returns a Result (also inside `Task`): any public method of a `ControllerBase`/`[ApiController]` type, a method of a type ending with `qg_endpoint_type_suffixes` (`Controller,Endpoint,Endpoints`) that has `[Route]`/`[Http*]`, or a lambda or method group passed to `MapGet/MapPost/MapPut/MapDelete/MapPatch/MapMethods`. Return `result.ToHttpResult()` instead.
+### qg0101
+C29 NoCatchInCore. Any `catch` in a core-layer type, except exception-handler boundaries (`IExceptionHandler`, `*ExceptionHandler`, `*Middleware`, `*ExceptionFilter` via `qg_exception_boundary_suffixes`, composition root).
+### qg0102
+X3. Adapter layer only (not unknown layer; hosted services are boundaries): unfiltered `catch`, `catch (Exception)` or `catch (SystemException)` without a `throw;`. Catch the specific exception and convert it to an `Error`.
+### qg0103
+X4. `Task.Delay` / `Thread.Sleep` inside a catch block or inside a loop whose body has a `try/catch` (retry shape). Plain polling or throttling loops, `IHostedService`/`BackgroundService` types and the composition root are not reported.
+### qg0104
+X6. `OperationCanceledException`/`TaskCanceledException` caught outside a boundary, hosted service or a `throw;` rethrow.
+### qg0105
+X7. Any `catch` in a type implementing a consumer interface (`qg_consumer_interfaces`, default `MassTransit.IConsumer`; simple or namespace-qualified names).
+### qg0106
+X8. A returned Result is discarded: expression statement (also `await`), `_ = Call()`, void-lambda body, un-awaited `Task<Result>`/`ValueTask<Result>` statements, or a Result local (declaration, `out var`, pattern) that is never read; assignments alone do not count.
+### qg0107
+X9. `new Error(...)` or a static `Error` factory called with a literal or interpolated `code` outside a static class ending with `qg_error_catalog_suffixes` (`Errors`).
+### qg0108
+X10. A method returning a Result (or `Task<Result>`) throws. Also local functions and getters. Allowed: any `ArgumentException` subclass, `qg_result_allowed_throws` (default `ArgumentNullException,ArgumentException,ArgumentOutOfRangeException,UnreachableException`), `ThrowIf*` guards, bare `throw;`, lambdas.
+### qg0109
+Z4. A source-declared Result type has `IsSuccess`/`IsFailure` without `[MemberNotNullWhen]` while exposing `Value`/`Error`; unchecked access then compiles silently.
+### qg0110
+Z4. `ProblemDetails.Detail` or `Problem(detail: ...)` is built from an exception (`Message`, `StackTrace`, `ToString()`, interpolation). `qg_problem_details_safe_exceptions` lists exception types whose text is user-safe.
+### qg0111
+NoFluentResultChains. `Bind/Map/Then/MapError/Tap/Ensure/OnSuccess/OnFailure` (+`Async`; `qg_fluent_result_methods`) when the receiver (or the first argument of an extension method) is a Result, and LINQ query syntax over a Result.
