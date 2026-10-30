@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.0
+
+- Analyzers: QG0188 (`lock` in Core) and QG0189 (static non-readonly field or static readonly mutable collection in Core), Z1 NoSharedMutableState; warning by default, Core layer only, test/excluded assemblies skipped, no diagnostics on symbols without source location.
+- Analyzers: `DesignAnalyzer` (QG0032 and the bool-flag rule) no longer indexes `Locations[0]` of parameters without a source location (AD0001 on synthesized entry points); top-level statements test added.
+- Build: B1 mirror of the TG bans, opt-in with `QualityGatesDesignBans=true` (RS0030 is an error, consumers grandfather legacy hits first): `BannedSymbols.All.txt` (MediatR, AutoMapper, Scrutor, LanguageExt, `Debug.Assert`; core, adapter and test layers), `BannedSymbols.Core.txt` (DateTime/DateTimeOffset clock, Console, HttpClient, DbContext, AWS/Npgsql/Newtonsoft; core), `BannedSymbols.CoreDesign.txt` (service locator, IServiceProvider/IServiceCollection, Guid.NewGuid, Random.Shared, Interlocked/Monitor/Thread/Task.Run, AspNetCore/MassTransit; core), `BannedSymbols.Model.txt` (Options/Logging/Configuration; core projects ending with `.Model` or `QualityGatesCoreModel=true`), `BannedSymbols.Test.txt` (real clock and delays in tests). The always-on `BannedSymbols.txt` is unchanged.
+- Build: `quality.globalconfig` adds as warnings S3776, S2386, S134, S126, S1659, S1244, S2139, S108, S2486, S2221, CA1002, CA2227, CA1051, CA1008, CA2254, CA1727, CA1031 (off in `Runner*` paths), CS8509, xUnit1004, IDE0051, IDE0052, IDE0072, IDE0011, IDE1006, IDE0079; QG0188/QG0189 are explicit warnings in the strict and legacy-ratchet profiles.
+
 ## 0.3.1
 
 - Analyzers: fix AD0001 `IndexOutOfRangeException` in `UsageAnalyzer` (QG0143 money-as-float check) on projects with top-level statements (ASP.NET Core `Program.cs`): the synthesized entry point has a parameter (`args`) without a source location; such parameters, properties and fields are now skipped.

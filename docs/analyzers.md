@@ -172,6 +172,12 @@ L7: public method of a type that implements an `I*Handler` interface from `Ports
 L8: stepdown. Private helper declared above the first method that calls it (same type declaration, same file). Types containing test methods are skipped.
 ### qg0187
 R1 (Law of Demeter): chain of more than two member accesses in Core code where at least two intermediate results are behavioral own-assembly classes or interfaces (types with ordinary methods; records, enums, data-only classes, framework types, extension/LINQ steps, fluent steps returning the receiver type and `*Builder` types exempt the chain).
+## Core concurrency (QG0188-QG0189)
+Z1 NoSharedMutableState. Core layer only (same layer detection as the readability rules); test and excluded assemblies are skipped. Default warning.
+### qg0188
+`lock` statement (also on `System.Threading.Lock`) in Core code. Core state is immutable; shared state belongs to an adapter. `Interlocked`, `Monitor`, `Thread` and `Task.Run` are covered by the shipped `BannedSymbols.CoreDesign.txt`.
+### qg0189
+Static field in Core code that is not `readonly`/`const`, or a `static readonly` field of a mutable collection type (`List`, `Dictionary`, `HashSet`, `Queue`, `Stack`, `Concurrent*`, ... from `System.Collections*`, immutable collections excluded). Fields without source location (synthesized) are skipped. Static properties are not covered.
 ## Results and error flow (QG0100-QG0111)
 Rules for the `KirillMaster.QualityGates.Results` style (early returns, no fluent railways). All default to warning. Layer comes from namespace/assembly segments (rightmost match wins), falling back to the `QualityGatesLayer` MSBuild property (compiler-visible as `build_property.QualityGatesLayer`); the `test` layer is skipped. Keys: `qg_core_namespace_segments` (`Core,Domain,Application,Ports`), `qg_adapter_namespace_segments` (`Adapters,Adapter,Runner,Runners,Infrastructure`), `qg_test_namespace_segments`, `qg_result_type_names` / `qg_error_type_names` (comma list of full type names ADDED to the defaults `KirillMaster.QualityGates.Results.Result`/`Result<T>` and `...Error`; same-named foreign types are ignored). Severity: strict profile makes QG0106 and QG0108 errors, everything else in this section is a warning in every profile (legacy-ratchet: all warnings).
 ### qg0100

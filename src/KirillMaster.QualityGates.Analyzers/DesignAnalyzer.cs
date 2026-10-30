@@ -26,6 +26,11 @@ public sealed class DesignAnalyzer : QgAnalyzer
             || method.DeclaredAccessibility == Accessibility.Private || Symbols.IsTestMethod(method);
         foreach (var parameter in method.Parameters)
         {
+            if (parameter.Locations.Length == 0)
+            {
+                continue;
+            }
+
             if (!flagsAllowed && parameter.Type.SpecialType == SpecialType.System_Boolean)
             {
                 context.ReportDiagnostic(Diagnostic.Create(Descriptors.BoolFlagParameter, parameter.Locations[0], parameter.Name));

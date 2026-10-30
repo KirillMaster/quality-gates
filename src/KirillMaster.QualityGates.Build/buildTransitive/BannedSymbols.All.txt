@@ -1,0 +1,5 @@
+N:MediatR;No mediator (C34): call the use case through its port, not through MediatR
+N:AutoMapper;No AutoMapper (C27): write explicit mapping code
+N:Scrutor;No assembly scanning (C27): register services explicitly
+N:LanguageExt;No FP framework (C34): use plain C# types
+M:System.Diagnostics.Debug.Assert;Debug.Assert disappears in Release (Z19): validate explicitly or throw

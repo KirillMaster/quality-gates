@@ -12,6 +12,7 @@
     <QualityGatesLayer Condition="'$(QualityGatesLayer)' == '' and ($(MSBuildProjectName.EndsWith('.Tests')) or $(MSBuildProjectName.EndsWith('.Test')))">test</QualityGatesLayer>
     <QualityGatesLayer Condition="'$(QualityGatesLayer)' == '' and ($(MSBuildProjectName.EndsWith('.Domain')) or $(MSBuildProjectName.EndsWith('.Application')) or $(MSBuildProjectName.EndsWith('.Core')) or $(MSBuildProjectName.EndsWith('.Ports.Input')) or $(MSBuildProjectName.EndsWith('.Ports.Output')))">core</QualityGatesLayer>
     <QualityGatesLayer Condition="'$(QualityGatesLayer)' == ''">adapter</QualityGatesLayer>
+    <QualityGatesCoreModel Condition="'$(QualityGatesCoreModel)' == '' and $(MSBuildProjectName.EndsWith('.Model'))">true</QualityGatesCoreModel>
     <Deterministic Condition="'$(Deterministic)' == ''">true</Deterministic>
     <QualityGatesAnalysisBase Condition="$([MSBuild]::VersionGreaterThanOrEquals($(MSBuildVersion), 18.0.0))">10.0</QualityGatesAnalysisBase>
     <QualityGatesAnalysisBase Condition="'$(QualityGatesAnalysisBase)' == ''">9.0</QualityGatesAnalysisBase>

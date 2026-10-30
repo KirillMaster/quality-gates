@@ -16,6 +16,12 @@
   <ItemGroup Condition="'$(QualityGatesEnabled)' != 'false'">
     <AdditionalFiles Condition="'$(QualityGatesGlossary)' != '' and Exists('$(QualityGatesGlossary)')" Include="$(QualityGatesGlossary)" />
     <AdditionalFiles Condition="'$(QualityGatesBannedSymbols)' != 'false'" Include="$(MSBuildThisFileDirectory)BannedSymbols.txt" />
+    <!-- Design bans report RS0030 (an error): opt-in with QualityGatesDesignBans=true until the consumer grandfathers its legacy hits. -->
+    <AdditionalFiles Condition="'$(QualityGatesBannedSymbols)' != 'false' and '$(QualityGatesDesignBans)' == 'true' and '$(QualityGatesLayer)' != 'excluded'" Include="$(MSBuildThisFileDirectory)BannedSymbols.All.txt" />
+    <AdditionalFiles Condition="'$(QualityGatesBannedSymbols)' != 'false' and '$(QualityGatesDesignBans)' == 'true' and '$(QualityGatesLayer)' == 'core'" Include="$(MSBuildThisFileDirectory)BannedSymbols.Core.txt" />
+    <AdditionalFiles Condition="'$(QualityGatesBannedSymbols)' != 'false' and '$(QualityGatesDesignBans)' == 'true' and '$(QualityGatesLayer)' == 'core'" Include="$(MSBuildThisFileDirectory)BannedSymbols.CoreDesign.txt" />
+    <AdditionalFiles Condition="'$(QualityGatesBannedSymbols)' != 'false' and '$(QualityGatesDesignBans)' == 'true' and '$(QualityGatesLayer)' == 'core' and '$(QualityGatesCoreModel)' == 'true'" Include="$(MSBuildThisFileDirectory)BannedSymbols.Model.txt" />
+    <AdditionalFiles Condition="'$(QualityGatesBannedSymbols)' != 'false' and '$(QualityGatesDesignBans)' == 'true' and '$(QualityGatesLayer)' == 'test'" Include="$(MSBuildThisFileDirectory)BannedSymbols.Test.txt" />
     <Compile Condition="'@(_QualityGatesRefactor)' == '' and Exists('$(QualityGatesGrandfatheredFile)')" Include="$(QualityGatesGrandfatheredFile)" Link="quality/GlobalSuppressions.Grandfathered.cs" />
     <GlobalAnalyzerConfigFiles Condition="'@(_QualityGatesRefactor)' != ''" Include="$(MSBuildThisFileDirectory)quality.refactor.globalconfig" />
   </ItemGroup>
