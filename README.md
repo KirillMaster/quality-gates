@@ -154,7 +154,7 @@ Set `QualityGatesProfile=legacy-ratchet`, put existing violations into `quality/
 
 1. Stops compiling `quality/grandfathered/*.GlobalSuppressions.cs`, so every grandfathered violation is an error again.
 2. Sets `TreatWarningsAsErrors=true`, even when the project sets `false`.
-3. Adds `quality.refactor.globalconfig` (`global_level = 100`), which sets all `QualityGates.*` analyzer categories (Abstraction, Design, Errors, Hygiene, Naming, Size, Testing) to error. This also enables the opt-in QG0031/QG0032 and overrides the legacy-ratchet suggestions for QG0033-QG0036, QG0050, QG0051. Curated third-party analyzers and `AnalysisLevel` are not changed (they already follow the profile); an `.editorconfig` entry still wins over the globalconfig.
+3. Adds `quality.refactor.globalconfig` (`global_level = 100`), which sets all `QualityGates.*` analyzer categories (Abstraction, Design, Errors, Hygiene, Naming, Size, Testing) to error. This also enables the opt-in QG0031/QG0032. In every profile and mode QG rules are at least warnings, so the CI new-code gate sees them on changed lines; legacy code is covered by grandfathered suppressions. Curated third-party analyzers and `AnalysisLevel` are not changed (they already follow the profile); an `.editorconfig` entry still wins over the globalconfig.
 
 Use `QualityGatesRefactorScope` to work on a few projects at a time; the rest keep adopt behaviour. Mode and scope are resolved in the package `.targets`, and `TreatWarningsAsErrors` is applied by the `QualityGatesResolveMode` target before compilation.
 
