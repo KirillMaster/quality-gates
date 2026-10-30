@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.CodeAnalysis.Operations;
 
 namespace KirillMaster.QualityGates.Analyzers;
@@ -23,8 +24,8 @@ public sealed class ResultAnalyzer : QgAnalyzer
             start.RegisterSymbolAction(c => AnalyzeEndpointMethod(c, roles), SymbolKind.Method);
             start.RegisterSymbolAction(c => AnalyzeResultType(c, roles), SymbolKind.NamedType);
             start.RegisterSyntaxNodeAction(c => AnalyzeMinimalApi(c, roles), SyntaxKind.InvocationExpression);
-            start.RegisterSyntaxNodeAction(c => AnalyzeUnusedLocal(c, roles), SyntaxKind.LocalDeclarationStatement);
-            start.RegisterSyntaxNodeAction(c => AnalyzeThrows(c, roles), SyntaxKind.MethodDeclaration);
+            start.RegisterOperationBlockAction(c => AnalyzeUnusedLocals(c, roles));
+            start.RegisterSyntaxNodeAction(c => AnalyzeThrows(c, roles), SyntaxKind.MethodDeclaration, SyntaxKind.LocalFunctionStatement, SyntaxKind.GetAccessorDeclaration, SyntaxKind.PropertyDeclaration);
             start.RegisterSyntaxNodeAction(c => AnalyzeQuery(c, roles), SyntaxKind.QueryExpression);
             start.RegisterOperationAction(c => AnalyzeDiscardedStatement(c, roles), OperationKind.ExpressionStatement);
             start.RegisterOperationAction(c => AnalyzeAssignment(c, roles), OperationKind.SimpleAssignment);
@@ -37,8 +38,8 @@ public sealed class ResultAnalyzer : QgAnalyzer
         var method = (IMethodSymbol)context.Symbol;
         var tree = method.Locations.FirstOrDefault()?.SourceTree;
         if (tree is null || method.MethodKind != MethodKind.Ordinary || method.DeclaredAccessibility != Accessibility.Public
-            || !IsEndpointType(method.ContainingType, roles, tree)
             || !roles.IsResult(Symbols.UnwrapTask(method.ReturnType), tree)
+            || !IsEndpointMethod(method, roles, tree)
             || roles.LayerOf(method, tree) == Layer.Test)
         {
             return;
@@ -56,12 +57,15 @@ public sealed class ResultAnalyzer : QgAnalyzer
             return;
         }
 
-        foreach (var lambda in invocation.ArgumentList.Arguments.Select(a => a.Expression).OfType<AnonymousFunctionExpressionSyntax>())
+        foreach (var handler in invocation.ArgumentList.Arguments.Select(a => a.Expression))
         {
-            if (context.SemanticModel.GetSymbolInfo(lambda, context.CancellationToken).Symbol is IMethodSymbol symbol
-                && roles.IsResult(Symbols.UnwrapTask(symbol.ReturnType), lambda.SyntaxTree))
+            var info = handler is AnonymousFunctionExpressionSyntax or IdentifierNameSyntax or MemberAccessExpressionSyntax
+                ? context.SemanticModel.GetSymbolInfo(handler, context.CancellationToken)
+                : default;
+            var symbol = info.Symbol as IMethodSymbol ?? info.CandidateSymbols.OfType<IMethodSymbol>().FirstOrDefault();
+            if (symbol is not null && roles.IsResult(Symbols.UnwrapTask(symbol.ReturnType), handler.SyntaxTree))
             {
-                context.ReportDiagnostic(Diagnostic.Create(Descriptors.ResultReturnedFromEndpoint, lambda.GetLocation(), name, symbol.ReturnType.Name));
+                context.ReportDiagnostic(Diagnostic.Create(Descriptors.ResultReturnedFromEndpoint, handler.GetLocation(), name, symbol.ReturnType.Name));
             }
         }
     }
@@ -69,7 +73,7 @@ public sealed class ResultAnalyzer : QgAnalyzer
     private static void AnalyzeDiscardedStatement(OperationAnalysisContext context, Roles roles)
     {
         var statement = (IExpressionStatementOperation)context.Operation;
-        if (IsCall(statement.Operation) && IsRelevantResult(statement.Operation.Type, statement.Syntax, context.ContainingSymbol, roles))
+        if (IsCall(statement.Operation) && IsRelevantResult(Symbols.UnwrapTask(statement.Operation.Type!), statement.Syntax, context.ContainingSymbol, roles))
         {
             context.ReportDiagnostic(Diagnostic.Create(Descriptors.ResultNotUsed, statement.Syntax.GetLocation(), "Returned Result is discarded; check IsFailure and return the error, or return the Result"));
         }
@@ -78,7 +82,7 @@ public sealed class ResultAnalyzer : QgAnalyzer
     private static void AnalyzeAssignment(OperationAnalysisContext context, Roles roles)
     {
         var assignment = (ISimpleAssignmentOperation)context.Operation;
-        if (assignment.Target is IDiscardOperation && IsCall(assignment.Value) && IsRelevantResult(assignment.Value.Type, assignment.Syntax, context.ContainingSymbol, roles))
+        if (assignment.Target is IDiscardOperation && IsCall(assignment.Value) && IsRelevantResult(Symbols.UnwrapTask(assignment.Value.Type!), assignment.Syntax, context.ContainingSymbol, roles))
         {
             context.ReportDiagnostic(Diagnostic.Create(Descriptors.ResultNotUsed, assignment.Syntax.GetLocation(), "Returned Result is assigned to a discard; check IsFailure and return the error, or return the Result"));
             return;
@@ -86,35 +90,47 @@ public sealed class ResultAnalyzer : QgAnalyzer
 
         if (assignment.Target is IPropertyReferenceOperation { Property.Name: "Detail" } target
             && target.Property.ContainingType.Name.Contains("ProblemDetails")
-            && LeaksException(assignment.Value))
+            && LeaksException(assignment.Value, roles, assignment.Syntax.SyntaxTree))
         {
             context.ReportDiagnostic(Diagnostic.Create(Descriptors.ProblemDetailsLeak, assignment.Syntax.GetLocation()));
         }
     }
 
-    private static void AnalyzeUnusedLocal(SyntaxNodeAnalysisContext context, Roles roles)
+    private static void AnalyzeUnusedLocals(OperationBlockAnalysisContext context, Roles roles)
     {
-        var declaration = (LocalDeclarationStatementSyntax)context.Node;
-        if (declaration.Parent is null || declaration.IsConst || roles.LayerOf(context.ContainingSymbol, declaration.SyntaxTree) == Layer.Test)
+        var declared = new Dictionary<ILocalSymbol, Location>(SymbolEqualityComparer.Default);
+        var read = new HashSet<ILocalSymbol>(SymbolEqualityComparer.Default);
+        foreach (var operation in context.OperationBlocks.SelectMany(b => b.DescendantsAndSelf()))
         {
-            return;
+            switch (operation)
+            {
+                case IVariableDeclaratorOperation declarator:
+                    declared[declarator.Symbol] = declarator.Symbol.Locations[0];
+                    break;
+                case IDeclarationPatternOperation { DeclaredSymbol: ILocalSymbol pattern }:
+                    declared[pattern] = pattern.Locations[0];
+                    break;
+                case ILocalReferenceOperation { IsDeclaration: true } declaration:
+                    declared[declaration.Local] = declaration.Local.Locations[0];
+                    break;
+                case ILocalReferenceOperation reference when IsRead(reference):
+                    read.Add(reference.Local);
+                    break;
+            }
         }
 
-        foreach (var variable in declaration.Declaration.Variables)
+        foreach (var pair in declared)
         {
-            if (context.SemanticModel.GetDeclaredSymbol(variable, context.CancellationToken) is not ILocalSymbol local || !roles.IsResult(local.Type, declaration.SyntaxTree))
+            var tree = pair.Value.SourceTree;
+            if (tree is not null && !read.Contains(pair.Key) && roles.IsResult(pair.Key.Type, tree) && roles.LayerOf(context.OwningSymbol, tree) != Layer.Test)
             {
-                continue;
-            }
-
-            var used = declaration.Parent.DescendantNodes().OfType<IdentifierNameSyntax>()
-                .Any(n => n.Identifier.ValueText == local.Name && SymbolEqualityComparer.Default.Equals(context.SemanticModel.GetSymbolInfo(n, context.CancellationToken).Symbol, local));
-            if (!used)
-            {
-                context.ReportDiagnostic(Diagnostic.Create(Descriptors.ResultNotUsed, variable.Identifier.GetLocation(), $"Result '{local.Name}' is never used; check IsFailure and return the error, or return the Result"));
+                context.ReportDiagnostic(Diagnostic.Create(Descriptors.ResultNotUsed, pair.Value, $"Result '{pair.Key.Name}' is never read; check IsFailure and return the error, or return the Result"));
             }
         }
     }
+
+    private static bool IsRead(ILocalReferenceOperation reference) =>
+        !(reference.Parent is ISimpleAssignmentOperation assignment && assignment.Target == reference);
 
     private static void AnalyzeCreation(OperationAnalysisContext context, Roles roles)
     {
@@ -136,7 +152,7 @@ public sealed class ResultAnalyzer : QgAnalyzer
         }
 
         AnalyzeFluentCall(context, roles, invocation);
-        AnalyzeProblemCall(context, invocation);
+        AnalyzeProblemCall(context, roles, invocation);
     }
 
     private static void AnalyzeFluentCall(OperationAnalysisContext context, Roles roles, IInvocationOperation invocation)
@@ -144,21 +160,23 @@ public sealed class ResultAnalyzer : QgAnalyzer
         var method = invocation.TargetMethod;
         var tree = invocation.Syntax.SyntaxTree;
         var name = method.Name.EndsWith("Async", StringComparison.Ordinal) ? method.Name.Substring(0, method.Name.Length - "Async".Length) : method.Name;
-        if (!roles.Config.List(tree, "qg_fluent_result_methods", Descriptors.FluentResultMethods).Contains(name)
-            || roles.LayerOf(context.ContainingSymbol, tree) == Layer.Test
-            || roles.IsResult(Roles.TypeOf(context.ContainingSymbol), tree))
+        if (!roles.Config.List(tree, "qg_fluent_result_methods", Descriptors.FluentResultMethods).Contains(name))
         {
             return;
         }
 
         var receiver = method.IsExtensionMethod && invocation.Arguments.Length > 0 ? invocation.Arguments[0].Value : invocation.Instance;
-        if (roles.IsResult(Symbols.UnwrapTask(receiver?.Type!), tree) || roles.IsResult(Symbols.UnwrapTask(method.ReturnType), tree))
+        if (receiver?.Type is null || !roles.IsResult(Symbols.UnwrapTask(receiver.Type), tree)
+            || roles.IsResult(Roles.TypeOf(context.ContainingSymbol), tree)
+            || roles.LayerOf(context.ContainingSymbol, tree) == Layer.Test)
         {
-            context.ReportDiagnostic(Diagnostic.Create(Descriptors.FluentResultChain, invocation.Syntax.GetLocation(), $"'{method.Name}' chains on a Result"));
+            return;
         }
+
+        context.ReportDiagnostic(Diagnostic.Create(Descriptors.FluentResultChain, invocation.Syntax.GetLocation(), $"'{method.Name}' chains on a Result"));
     }
 
-    private static void AnalyzeProblemCall(OperationAnalysisContext context, IInvocationOperation invocation)
+    private static void AnalyzeProblemCall(OperationAnalysisContext context, Roles roles, IInvocationOperation invocation)
     {
         if (invocation.TargetMethod.Name != "Problem")
         {
@@ -166,7 +184,7 @@ public sealed class ResultAnalyzer : QgAnalyzer
         }
 
         var detail = invocation.Arguments.FirstOrDefault(a => string.Equals(a.Parameter?.Name, "detail", StringComparison.Ordinal));
-        if (detail is not null && LeaksException(detail.Value))
+        if (detail is not null && LeaksException(detail.Value, roles, detail.Syntax.SyntaxTree))
         {
             context.ReportDiagnostic(Diagnostic.Create(Descriptors.ProblemDetailsLeak, detail.Syntax.GetLocation()));
         }
@@ -189,19 +207,31 @@ public sealed class ResultAnalyzer : QgAnalyzer
 
     private static void AnalyzeThrows(SyntaxNodeAnalysisContext context, Roles roles)
     {
-        var method = (MethodDeclarationSyntax)context.Node;
-        var symbol = context.SemanticModel.GetDeclaredSymbol(method, context.CancellationToken);
-        if (symbol is null || !roles.IsResult(Symbols.UnwrapTask(symbol.ReturnType), method.SyntaxTree)
-            || roles.LayerOf(symbol, method.SyntaxTree) == Layer.Test)
+        var node = context.Node;
+        var returned = context.SemanticModel.GetDeclaredSymbol(node, context.CancellationToken) switch
+        {
+            IMethodSymbol method => method.ReturnType,
+            IPropertySymbol property when node is PropertyDeclarationSyntax { ExpressionBody: not null } => property.Type,
+            _ => null,
+        };
+        SyntaxNode? body = node switch
+        {
+            MethodDeclarationSyntax m => (SyntaxNode?)m.Body ?? m.ExpressionBody,
+            LocalFunctionStatementSyntax l => (SyntaxNode?)l.Body ?? l.ExpressionBody,
+            AccessorDeclarationSyntax a => (SyntaxNode?)a.Body ?? a.ExpressionBody,
+            PropertyDeclarationSyntax p => p.ExpressionBody,
+            _ => null,
+        };
+        if (returned is null || body is null || !roles.IsResult(Symbols.UnwrapTask(returned), node.SyntaxTree)
+            || roles.LayerOf(context.ContainingSymbol, node.SyntaxTree) == Layer.Test)
         {
             return;
         }
 
-        var allowed = roles.Config.List(method.SyntaxTree, "qg_result_allowed_throws", Descriptors.AllowedResultThrows);
-        SyntaxNode? body = method.Body ?? (SyntaxNode?)method.ExpressionBody;
-        foreach (var node in body?.DescendantNodes(n => n is not AnonymousFunctionExpressionSyntax and not LocalFunctionStatementSyntax) ?? [])
+        var allowed = roles.Config.List(node.SyntaxTree, "qg_result_allowed_throws", Descriptors.AllowedResultThrows);
+        foreach (var candidate in body.DescendantNodes(n => n is not AnonymousFunctionExpressionSyntax and not LocalFunctionStatementSyntax))
         {
-            var thrown = node switch
+            var thrown = candidate switch
             {
                 ThrowStatementSyntax { Expression: { } e } => e,
                 ThrowExpressionSyntax t => t.Expression,
@@ -212,10 +242,11 @@ public sealed class ResultAnalyzer : QgAnalyzer
                 continue;
             }
 
-            var thrownName = context.SemanticModel.GetTypeInfo(thrown, context.CancellationToken).Type?.Name ?? thrown.ToString();
-            if (!allowed.Contains(thrownName))
+            var thrownType = context.SemanticModel.GetTypeInfo(thrown, context.CancellationToken).Type;
+            var thrownName = thrownType?.Name ?? thrown.ToString();
+            if (!allowed.Contains(thrownName) && !roles.IsArgumentException(thrownType))
             {
-                context.ReportDiagnostic(Diagnostic.Create(Descriptors.ResultMethodThrows, node.GetFirstToken().GetLocation(), symbol.Name, thrownName));
+                context.ReportDiagnostic(Diagnostic.Create(Descriptors.ResultMethodThrows, candidate.GetFirstToken().GetLocation(), context.ContainingSymbol?.Name, thrownName));
             }
         }
     }
@@ -287,22 +318,31 @@ public sealed class ResultAnalyzer : QgAnalyzer
     private static bool IsRelevantResult(ITypeSymbol? type, SyntaxNode node, ISymbol? containing, Roles roles) =>
         roles.IsResult(type, node.SyntaxTree) && roles.LayerOf(containing, node.SyntaxTree) != Layer.Test;
 
-    private static bool IsEndpointType(INamedTypeSymbol type, Roles roles, SyntaxTree tree)
+    private static bool IsEndpointMethod(IMethodSymbol method, Roles roles, SyntaxTree tree)
     {
+        var type = method.ContainingType;
+        if (roles.IsControllerType(type))
+        {
+            return true;
+        }
+
         var suffixes = roles.Config.List(tree, "qg_endpoint_type_suffixes", Descriptors.EndpointTypeSuffixes);
-        return Symbols.InheritsFrom(type, "Microsoft.AspNetCore.Mvc.ControllerBase")
-            || type.GetAttributes().Any(a => a.AttributeClass?.Name == "ApiControllerAttribute")
-            || suffixes.Any(s => type.Name.EndsWith(s, StringComparison.Ordinal));
+        return suffixes.Any(s => type.Name.EndsWith(s, StringComparison.Ordinal))
+            && method.GetAttributes().Any(a => a.AttributeClass is { } c && (c.Name == "RouteAttribute" || (c.Name.StartsWith("Http", StringComparison.Ordinal) && c.Name.EndsWith("Attribute", StringComparison.Ordinal))));
     }
 
-    private static bool LeaksException(IOperation value) =>
-        value.DescendantsAndSelf().Any(op => op switch
+    private static bool LeaksException(IOperation value, Roles roles, SyntaxTree tree)
+    {
+        var safe = roles.Config.List(tree, "qg_problem_details_safe_exceptions", string.Empty);
+        return value.DescendantsAndSelf().Any(op => op switch
         {
-            IPropertyReferenceOperation property => IsException(property.Instance?.Type) && ExceptionDetails.Contains(property.Property.Name),
-            IInvocationOperation call => call.TargetMethod.Name == "ToString" && IsException(call.Instance?.Type),
-            IInterpolationOperation interpolation => IsException(interpolation.Expression.Type),
+            IPropertyReferenceOperation property => IsLeakyException(property.Instance?.Type, roles, safe) && ExceptionDetails.Contains(property.Property.Name),
+            IInvocationOperation call => call.TargetMethod.Name == "ToString" && IsLeakyException(call.Instance?.Type, roles, safe),
+            IInterpolationOperation interpolation => IsLeakyException(interpolation.Expression.Type, roles, safe),
             _ => false,
         });
+    }
 
-    private static bool IsException(ITypeSymbol? type) => Symbols.InheritsFrom(type, "System.Exception");
+    private static bool IsLeakyException(ITypeSymbol? type, Roles roles, ImmutableHashSet<string> safe) =>
+        roles.IsException(type) && !safe.Contains(type!.Name) && !safe.Contains(type.ToDisplayString());
 }

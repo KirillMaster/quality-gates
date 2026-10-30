@@ -11,6 +11,11 @@ Reusable quality gates for modern .NET (net8 / net10). MIT licensed.
 
 No StyleCop (Roslynator covers it). Legacy .NET Framework (net48) is not supported.
 
+### Result API caveats
+- `Result<T>` converts implicitly from `T` and from `Error`; `Result<Error>` is therefore ambiguous, do not use `Error` as `T`.
+- `ErrorType` is closed by convention: add values only together with the `ToHttpResult` mapping (the exhaustive switch fails the build on a missing member).
+- A `Result` or `Result<T>` must be used; QG0106 reports discarded and never-read results.
+
 ## Usage
 
 ```xml

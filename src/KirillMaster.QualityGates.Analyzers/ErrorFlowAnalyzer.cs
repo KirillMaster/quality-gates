@@ -34,7 +34,7 @@ public sealed class ErrorFlowAnalyzer : QgAnalyzer
         var caught = clause.Declaration is null ? null : context.SemanticModel.GetTypeInfo(clause.Declaration.Type, context.CancellationToken).Type;
         var boundary = roles.IsBoundary(type, clause);
         var rethrows = Rethrows(clause);
-        if (IsCancellation(caught) && !boundary && !rethrows && !Roles.IsHostedService(type))
+        if (roles.IsCancellation(caught) && !boundary && !rethrows)
         {
             context.ReportDiagnostic(Diagnostic.Create(Descriptors.CatchCancellation, clause.CatchKeyword.GetLocation(), caught!.Name));
         }
@@ -48,7 +48,7 @@ public sealed class ErrorFlowAnalyzer : QgAnalyzer
         {
             context.ReportDiagnostic(Diagnostic.Create(Descriptors.CatchInCore, clause.CatchKeyword.GetLocation()));
         }
-        else if (clause.Filter is null && IsCatchAll(caught) && !rethrows)
+        else if (layer == Layer.Adapter && clause.Filter is null && IsCatchAll(caught) && !rethrows)
         {
             context.ReportDiagnostic(Diagnostic.Create(Descriptors.CatchAllInAdapter, clause.CatchKeyword.GetLocation(), caught?.Name ?? "all"));
         }
@@ -72,7 +72,7 @@ public sealed class ErrorFlowAnalyzer : QgAnalyzer
         if (full is not ("System.Threading.Tasks.Task.Delay" or "System.Threading.Thread.Sleep")
             || roles.LayerOf(context.ContainingSymbol, invocation.SyntaxTree) == Layer.Test
             || roles.Config.IsCompositionRoot(invocation)
-            || Roles.IsHostedService(Roles.TypeOf(context.ContainingSymbol)))
+            || roles.IsHostedService(Roles.TypeOf(context.ContainingSymbol)))
         {
             return;
         }
@@ -94,31 +94,21 @@ public sealed class ErrorFlowAnalyzer : QgAnalyzer
                     return null;
                 case CatchClauseSyntax:
                     return "catch block";
-                case WhileStatementSyntax or DoStatementSyntax or ForStatementSyntax or CommonForEachStatementSyntax when !IsPolling(ancestor):
-                    return "loop";
+                case WhileStatementSyntax or DoStatementSyntax or ForStatementSyntax or CommonForEachStatementSyntax when HasTryCatch(ancestor):
+                    return "retry loop";
             }
         }
 
         return null;
     }
 
-    private static bool IsPolling(SyntaxNode loop)
-    {
-        var condition = loop switch
-        {
-            WhileStatementSyntax w => w.Condition.ToString(),
-            DoStatementSyntax d => d.Condition.ToString(),
-            ForStatementSyntax { Condition: { } c } => c.ToString(),
-            _ => string.Empty,
-        };
-        return condition.Contains("IsCancellationRequested");
-    }
+    private static bool HasTryCatch(SyntaxNode loop) =>
+        loop.DescendantNodes(n => n is not AnonymousFunctionExpressionSyntax and not LocalFunctionStatementSyntax)
+            .OfType<TryStatementSyntax>().Any(t => t.Catches.Count > 0);
 
     private static bool Rethrows(CatchClauseSyntax clause) =>
         clause.Block.DescendantNodes(n => n is not AnonymousFunctionExpressionSyntax and not LocalFunctionStatementSyntax)
             .OfType<ThrowStatementSyntax>().Any(t => t.Expression is null);
-
-    private static bool IsCancellation(ITypeSymbol? type) => Symbols.InheritsFrom(type, "System.OperationCanceledException");
 
     private static bool IsCatchAll(ITypeSymbol? type) =>
         type is null || type.SpecialType == SpecialType.System_Object

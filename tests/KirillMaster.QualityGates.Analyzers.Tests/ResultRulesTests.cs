@@ -7,6 +7,8 @@ public sealed class ResultRulesTests
         using System.Diagnostics.CodeAnalysis;
         using System.Threading;
         using System.Threading.Tasks;
+        using KirillMaster.QualityGates.Results;
+        namespace KirillMaster.QualityGates.Results {
         public enum ErrorType { Validation, NotFound }
         public sealed class Error
         {
@@ -31,6 +33,10 @@ public sealed class ResultRulesTests
             public static implicit operator Result<T>(Error e) => null!;
             public Result<U> Select<U>(Func<T, U> map) => null!;
         }
+        }
+        namespace Microsoft.AspNetCore.Mvc { public class ControllerBase { } }
+        public sealed class HttpGetAttribute : Attribute { }
+        public class DomainException : Exception { }
         public class ProblemDetails { public string? Detail { get; set; } }
         public static class Problems { public static object Problem(string? title = null, string? detail = null) => null!; }
         public static class Hosting { public static void MapGet(this object app, string pattern, Delegate handler) { } }
@@ -48,15 +54,15 @@ public sealed class ResultRulesTests
 
     [Fact]
     public async Task Controller_returning_result_is_reported_x2() =>
-        Assert.Equal(["QG0100"], await Ids("public class OrdersController { public Result<int> Get() => 1; }"));
+        Assert.Equal(["QG0100"], await Ids("public class OrdersController : Microsoft.AspNetCore.Mvc.ControllerBase { public Result<int> Get() => 1; }"));
 
     [Fact]
     public async Task Controller_returning_task_of_result_is_reported_x2() =>
-        Assert.Equal(["QG0100"], await Ids("public class OrdersController { public async Task<Result> Get() => await Task.FromResult<Result>(null!); }"));
+        Assert.Equal(["QG0100"], await Ids("public class OrdersController : Microsoft.AspNetCore.Mvc.ControllerBase { public async Task<Result> Get() => await Task.FromResult<Result>(null!); }"));
 
     [Fact]
     public async Task Handler_and_non_result_endpoints_are_not_reported_x2() =>
-        Assert.Empty(await Ids("public class OrderHandler { public Result<int> Handle() => 1; } public class OrdersController { public int Get() => 1; private Result<int> Helper() => 1; }"));
+        Assert.Empty(await Ids("public class OrderHandler { public Result<int> Handle() => 1; } public class OrdersController : Microsoft.AspNetCore.Mvc.ControllerBase { public int Get() => 1; private Result<int> Helper() => 1; }"));
 
     [Fact]
     public async Task Minimal_api_lambda_returning_result_is_reported_x2() =>
@@ -107,8 +113,8 @@ public sealed class ResultRulesTests
         Assert.Equal(["QG0103"], await Ids("class H { async Task M() { try { } catch (InvalidOperationException) { await Task.Delay(100); } } }"));
 
     [Fact]
-    public async Task Sleep_in_loop_is_reported_x4() =>
-        Assert.Equal(["QG0103"], await Ids("class H { void M() { for (var i = 0; i < 3; i++) { System.Threading.Thread.Sleep(10); } } }"));
+    public async Task Sleep_in_retry_loop_is_reported_x4() =>
+        Assert.Equal(["QG0103"], await Ids("class H { void M() { for (var i = 0; i < 3; i++) { try { Run(); return; } catch (InvalidOperationException) { } System.Threading.Thread.Sleep(10); } } void Run() { } }"));
 
     [Fact]
     public async Task Delay_outside_loop_is_allowed_x4() =>
@@ -204,11 +210,11 @@ public sealed class ResultRulesTests
 
     [Fact]
     public async Task Result_flag_without_member_not_null_when_is_reported_z4() =>
-        Assert.Equal(["QG0109", "QG0109"], [.. (await AnalyzerHarness.DiagnoseWithConfigAsync("public sealed class Result { public bool IsSuccess => true; public bool IsFailure => !IsSuccess; public string? Error { get; } }")).Where(id => id == "QG0109")]);
+        Assert.Equal(["QG0109", "QG0109"], [.. (await AnalyzerHarness.DiagnoseWithConfigAsync("public sealed class Result { public bool IsSuccess => true; public bool IsFailure => !IsSuccess; public string? Error { get; } }", ("qg_result_type_names", "Result"))).Where(id => id == "QG0109")]);
 
     [Fact]
     public async Task Result_without_value_or_error_is_clean_z4() =>
-        Assert.DoesNotContain("QG0109", await AnalyzerHarness.DiagnoseWithConfigAsync("public sealed class Result { public bool IsSuccess => true; }"));
+        Assert.DoesNotContain("QG0109", await AnalyzerHarness.DiagnoseWithConfigAsync("public sealed class Result { public bool IsSuccess => true; }", ("qg_result_type_names", "Result")));
 
     [Fact]
     public async Task Exception_message_in_problem_details_is_reported_z4() =>
@@ -237,4 +243,68 @@ public sealed class ResultRulesTests
     [Fact]
     public async Task Result_names_are_configurable() =>
         Assert.Equal(["QG0106"], await Ids("public sealed class Outcome { } class H { Outcome M() => null!; void Use() { M(); } }", ("qg_result_type_names", "Outcome")));
+
+    [Fact]
+    public async Task Same_named_foreign_types_are_ignored() =>
+        Assert.Empty(await Ids("namespace Other { public class Result { } public class Error { public Error(string code) { } } } class H { Other.Result M() => null!; void Use() { M(); var e = new Other.Error(\"x\"); } }"));
+
+    [Fact]
+    public async Task Catch_all_in_unknown_layer_is_not_reported_x3() =>
+        Assert.Empty(await Ids("class H { void M() { try { } catch (Exception) { } } }"));
+
+    [Fact]
+    public async Task Catch_all_in_hosted_service_is_a_boundary_x3() =>
+        Assert.Empty(await IdsIn("Shop.Adapters.Jobs", "class W : IHostedService { void M() { try { } catch (Exception) { } } }"));
+
+    [Fact]
+    public async Task Unawaited_task_of_result_is_reported_x8() =>
+        Assert.Equal(["QG0106"], await Ids("class H { Task<Result> M() => null!; void Use() { M(); } }"));
+
+    [Fact]
+    public async Task Unawaited_value_task_of_result_in_lambda_is_reported_x8() =>
+        Assert.Equal(["QG0106"], await Ids("class H { ValueTask<Result> M() => default; void Use() { Action a = () => M(); a(); } }"));
+
+    [Fact]
+    public async Task Result_local_that_is_only_assigned_is_reported_x8() =>
+        Assert.Equal(["QG0106"], await Ids("class H { Result M() => null!; void Use() { Result r = M(); r = M(); } }"));
+
+    [Fact]
+    public async Task Unused_out_var_result_is_reported_x8() =>
+        Assert.Equal(["QG0106"], await Ids("class H { bool Try(out Result r) { r = null!; return true; } void Use() { if (Try(out var r)) { } } }"));
+
+    [Fact]
+    public async Task Unused_pattern_local_result_is_reported_x8() =>
+        Assert.Equal(["QG0106"], await Ids("class H { void Use(object o) { if (o is Result r) { } } }"));
+
+    [Fact]
+    public async Task Read_out_var_result_is_clean_x8() =>
+        Assert.Empty(await Ids("class H { bool Try(out Result r) { r = null!; return true; } bool Use() { return Try(out var r) && r.IsSuccess; } }"));
+
+    [Fact]
+    public async Task Plain_polling_loop_with_delay_is_not_a_retry_x4() =>
+        Assert.Empty(await Ids("class H { async Task M() { for (var i = 0; i < 3; i++) { await Task.Delay(10); } } }"));
+
+    [Fact]
+    public async Task Fluent_method_returning_result_on_other_receiver_is_clean_fluent() =>
+        Assert.Empty(await Ids("class Pipeline { public Result Map(int a) => null!; } class H { Result M(Pipeline p) => p.Map(1); }"));
+
+    [Fact]
+    public async Task Endpoints_type_needs_a_route_attribute_x2() =>
+        Assert.Equal(["QG0100"], await Ids("public static class OrderEndpoints { [HttpGet] public static Result<int> Get() => 1; public static Result<int> Helper() => 1; }"));
+
+    [Fact]
+    public async Task Method_group_handler_returning_result_is_reported_x2() =>
+        Assert.Equal(["QG0100"], await Ids("class P { static Result<int> Get() => 1; void M(object app) { app.MapGet(\"/\", Get); } }"));
+
+    [Fact]
+    public async Task Argument_exception_subclass_is_allowed_in_result_methods_x10() =>
+        Assert.Empty(await Ids("class MyArg : ArgumentException { } class H { Result M() { throw new MyArg(); } }"));
+
+    [Fact]
+    public async Task Throwing_local_function_and_getter_are_reported_x10() =>
+        Assert.Equal(["QG0108", "QG0108"], await Ids("class H { Result P { get { throw new InvalidOperationException(); } } void M() { Result Local() { throw new InvalidOperationException(); } Take(Local()); } void Take(Result r) { } }"));
+
+    [Fact]
+    public async Task Safe_exception_types_are_configurable_z4() =>
+        Assert.Empty(await Ids("class H { object M(DomainException ex) => new ProblemDetails { Detail = ex.Message }; }", ("qg_problem_details_safe_exceptions", "DomainException")));
 }
