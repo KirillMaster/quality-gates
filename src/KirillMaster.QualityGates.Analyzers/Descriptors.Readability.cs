@@ -41,6 +41,8 @@ public static class ReadabilityDescriptors
     public static readonly DiagnosticDescriptor LockInCore = Create("QG0188", "Lock in core", "Core code uses 'lock'; keep core state immutable or confine shared state to an adapter", "Design");
     public static readonly DiagnosticDescriptor StaticMutableState = Create("QG0189", "Static mutable state in core", "Static field '{0}' is {1}; keep core state immutable or confine it to an adapter", "Design");
 
+    public static readonly DiagnosticDescriptor ClosedSwitchDiscard = Create("QG0190", "Discard arm on closed type", "Switch over closed type '{0}' must be exhaustive without a discard arm (a discard may only throw)", "Errors");
+
     private static DiagnosticDescriptor Create(string id, string title, string message, string category) =>
         new(id, title, message, "QualityGates." + category, DiagnosticSeverity.Warning, true,
             helpLinkUri: "https://github.com/KirillMaster/quality-gates/blob/main/docs/analyzers.md#" + id.ToLowerInvariant());
