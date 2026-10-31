@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.2
+
+- Architecture: repository rules (inline suppression limit, project files, settings) skip nested git worktrees (directories with their own `.git`) and `bin`/`obj`/`node_modules`/`artifacts`, so agent worktrees inside a checkout no longer inflate the counts.
+
 ## 0.5.1
 
 - Build: fix warning `InvalidGlobalSectionName` in every consumer build. `quality.globalconfig` no longer contains glob sections (global analyzer configs allow absolute paths only, so the X1 runner relaxation was ignored). The CA1031 relaxation for runners now lives in `quality.runners.globalconfig` (global_level 10), added by the props when the project name is `Runner*` or `*.Runner*`. Fixture build tests cover both.
