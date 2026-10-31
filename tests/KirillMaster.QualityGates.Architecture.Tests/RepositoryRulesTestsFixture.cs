@@ -56,6 +56,18 @@ public sealed class RepositoryRulesFixtureTests : IDisposable
     }
 
     [Fact]
+    public void Nested_worktree_is_not_scanned()
+    {
+        Write("src/A.cs", "#pragma warning disable CS0168\nclass A { }");
+        Write(".worktrees/feature/.git", "gitdir: ../../.git/worktrees/feature");
+        Write(".worktrees/feature/src/A.cs", "#pragma warning disable CS0168\nclass A { }");
+        Write(".worktrees/feature/A/A.csproj", "<Project />");
+
+        Assert.Empty(RepositoryRules.SuppressionsUnderLimit(root, new RepositoryRulesOptions { InlineSuppressionLimit = 1 }));
+        Assert.Empty(RepositoryRules.ProjectFiles(root));
+    }
+
+    [Fact]
     public void Project_reference_across_layers_is_reported_and_unloaded_project_found()
     {
         Write("Shop.Domain/Shop.Domain.csproj", "<Project><ItemGroup><ProjectReference Include=\"..\\Shop.Adapters\\Shop.Adapters.csproj\" /></ItemGroup></Project>");

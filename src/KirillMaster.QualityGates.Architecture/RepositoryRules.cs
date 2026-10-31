@@ -173,7 +173,26 @@ public static class RepositoryRules
         return doc.RootElement.TryGetProperty("maxGrandfatheredSuppressions", out var value) ? value.GetInt32() : 0;
     }
 
-    private static IEnumerable<string> EnumerateFiles(string root, string pattern) =>
-        Directory.EnumerateFiles(root, pattern, SearchOption.AllDirectories)
-            .Where(f => !f.Replace('\\', '/').Split('/').Any(s => s is "bin" or "obj" or "node_modules" or ".git" or "artifacts"));
+    /// <summary>Files under the root; build output and nested repositories (a directory with its own .git, such as a git worktree inside the checkout) are skipped.</summary>
+    private static IEnumerable<string> EnumerateFiles(string root, string pattern)
+    {
+        var pending = new Stack<string>([root]);
+        while (pending.Count > 0)
+        {
+            var directory = pending.Pop();
+            foreach (var file in Directory.EnumerateFiles(directory, pattern))
+            {
+                yield return file;
+            }
+
+            foreach (var child in Directory.EnumerateDirectories(directory).Where(IsScanned))
+            {
+                pending.Push(child);
+            }
+        }
+    }
+
+    private static bool IsScanned(string directory) =>
+        Path.GetFileName(directory) is not ("bin" or "obj" or "node_modules" or ".git" or "artifacts")
+        && !Path.Exists(Path.Combine(directory, ".git"));
 }
