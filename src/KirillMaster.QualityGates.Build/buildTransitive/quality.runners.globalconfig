@@ -1,0 +1,5 @@
+# X1: catch-all is allowed in runners (composition roots / hosted loops). Added by the props when the project name is Runner* or *.Runner*.
+is_global = true
+global_level = 10
+
+dotnet_diagnostic.CA1031.severity = none

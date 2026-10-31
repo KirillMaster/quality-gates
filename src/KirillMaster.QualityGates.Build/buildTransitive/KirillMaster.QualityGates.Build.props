@@ -31,5 +31,6 @@
     <GlobalAnalyzerConfigFiles Include="$(MSBuildThisFileDirectory)quality.globalconfig" />
     <GlobalAnalyzerConfigFiles Condition="'$(QualityGatesProfile)' == 'legacy-ratchet'" Include="$(MSBuildThisFileDirectory)quality.legacy.globalconfig" />
     <GlobalAnalyzerConfigFiles Condition="'$(QualityGatesLayer)' == 'test'" Include="$(MSBuildThisFileDirectory)quality.tests.globalconfig" />
+    <GlobalAnalyzerConfigFiles Condition="$(MSBuildProjectName.StartsWith('Runner')) or $(MSBuildProjectName.Contains('.Runner'))" Include="$(MSBuildThisFileDirectory)quality.runners.globalconfig" />
   </ItemGroup>
 </Project>

@@ -123,10 +123,3 @@ dotnet_diagnostic.QG0111.severity = warning
 dotnet_diagnostic.QG0188.severity = warning
 dotnet_diagnostic.QG0189.severity = warning
 dotnet_diagnostic.QG0190.severity = warning
-
-# X1: catch-all is allowed in runners (composition roots / hosted loops).
-[**/Runner*/**/*.cs]
-dotnet_diagnostic.CA1031.severity = none
-
-[**/*.Runner*/**/*.cs]
-dotnet_diagnostic.CA1031.severity = none

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.1
+
+- Build: fix warning `InvalidGlobalSectionName` in every consumer build. `quality.globalconfig` no longer contains glob sections (global analyzer configs allow absolute paths only, so the X1 runner relaxation was ignored). The CA1031 relaxation for runners now lives in `quality.runners.globalconfig` (global_level 10), added by the props when the project name is `Runner*` or `*.Runner*`. Fixture build tests cover both.
+
 ## 0.5.0
 
 - Cli: new `KirillMaster.QualityGates.Cli` dotnet tool (`qg`), the generic gates CLI moved into core: commands `pr`, `mutation-diff`, `mutation-ratchet`, `nightly`, `audit`, `grandfather`, `baseline`. Domain, application and adapter layers live in one assembly (`Domain`, `Application`, `Adapters`, `Commands` namespaces). Organisation-specific analyzers, MSBuild package and CI pipeline scripts are not part of it. Tests ported (unit, fixtures, git integration).
