@@ -8,6 +8,7 @@ Reusable quality gates for modern .NET (net8 / net10). MIT licensed.
 | `KirillMaster.QualityGates.Architecture` | ArchUnitNET-based test base for hexagonal layering, config-driven layers, namespace-cycle and type-cycle (baseline) checks, repository meta-tests (locked settings, central package versions, suppression ratchet, every project covered). |
 | `KirillMaster.QualityGates.Results` | Minimal `Result`, `Result<T>`, `Error`, `ErrorType` (netstandard2.0 / net10): implicit conversions, `MemberNotNullWhen`, no fluent API. Companion of the QG0100-QG0111 rules. |
 | `KirillMaster.QualityGates.Results.AspNetCore` | `ToHttpResult()` ProblemDetails mapping and a `ProblemExceptionHandler` base that never exposes exception details. |
+| `KirillMaster.QualityGates.Cli` | `qg` dotnet tool: repository-agnostic CI gates (new-code violations, baseline ratchet and growth, diff coverage, format, duplication, PR size, change coupling, fan-out, architecture and cognitive-complexity deltas, mutation budget, debt report). See `docs/cli.md`. |
 
 No StyleCop (Roslynator covers it). Legacy .NET Framework (net48) is not supported.
 

@@ -1,0 +1,1 @@
+{"commit":"0000000","measuredAt":"2026-10-01T00:00:00Z","projects":[{"name":"Sample.Domain","layer":"core","lineCoverage":100},{"name":"Sample.Adapters","layer":"adapter","lineCoverage":100}],"warnings":{"Sample.Domain":{"CA1822":1}}}

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<coverage version="1.9">
+  <sources><source>/repo</source></sources>
+  <packages><package name="Sample"><classes>
+    <class name="Sample.A" filename="src/A.cs"><lines><line number="7" hits="0" branch="False" /><line number="8" hits="2" branch="False" /></lines></class>
+  </classes></package></packages>
+</coverage>

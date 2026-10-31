@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<coverage version="1.9">
+  <packages><package name="Sample"><classes>
+    <class name="Sample.Domain.Calc" filename="src/Sample.Domain/Calc.cs"><lines><line number="5" hits="1" branch="False" /><line number="8" hits="0" branch="False" /></lines></class>
+    <class name="Sample.Adapters.Repo" filename="src/Sample.Adapters/Repo.cs"><lines><line number="5" hits="1" branch="False" /></lines></class>
+  </classes></package></packages>
+</coverage>

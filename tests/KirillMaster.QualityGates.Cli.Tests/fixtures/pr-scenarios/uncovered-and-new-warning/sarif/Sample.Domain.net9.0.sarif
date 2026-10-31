@@ -1,0 +1,34 @@
+{
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "Microsoft (R) Visual C# Compiler"
+        }
+      },
+      "results": [
+        {
+          "ruleId": "CA1822",
+          "level": "warning",
+          "message": {
+            "text": "m"
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "file:///src/Sample.Domain/Calc.cs"
+                },
+                "region": {
+                  "startLine": 8,
+                  "startColumn": 9
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

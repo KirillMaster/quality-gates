@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<coverage version="1.9">
+  <sources><source>C:\agent\workspace\build-42\</source></sources>
+  <packages><package name="Sample"><classes>
+    <class name="Sample.A" filename="C:\agent\workspace\build-42\src\A.cs"><lines><line number="3" hits="1" branch="False" /></lines></class>
+    <class name="Sample.B" filename="/var/agent/workspace/build-42/src/Deep/B.cs"><lines><line number="5" hits="0" branch="False" /></lines></class>
+  </classes></package></packages>
+</coverage>
