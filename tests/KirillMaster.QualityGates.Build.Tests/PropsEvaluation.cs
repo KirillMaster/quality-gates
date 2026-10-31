@@ -73,6 +73,25 @@ internal sealed class PropsEvaluation : IDisposable
         return [.. json.RootElement.GetProperty("Items").GetProperty("AdditionalFiles").EnumerateArray().Select(i => Path.GetFileName(i.GetProperty("Identity").GetString()!)).Where(n => n.StartsWith("BannedSymbols", StringComparison.Ordinal))];
     }
 
+    public string Build(string source)
+    {
+        File.WriteAllText(Path.Combine(directory, "Source.cs"), source);
+        var info = new ProcessStartInfo("dotnet") { WorkingDirectory = directory, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var argument in new[] { "build", ProjectName + ".csproj", "-nologo", "-v:q", "-p:EnableDefaultCompileItems=true", "-p:TreatWarningsAsErrors=false", "-p:UseSharedCompilation=false" })
+        {
+            info.ArgumentList.Add(argument);
+        }
+
+        info.Environment.Remove("QUALITYGATES_MODE");
+        using var process = Process.Start(info)!;
+        var error = process.StandardError.ReadToEndAsync();
+        var output = process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        var all = output + error.GetAwaiter().GetResult();
+        Assert.True(process.ExitCode == 0, all);
+        return all;
+    }
+
     public void Dispose() => Directory.Delete(directory, recursive: true);
 
     private static string FindRepositoryRoot()
